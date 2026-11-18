@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Heart, Facebook, Instagram, Twitter, Youtube } from "lucide-react";
+import { Heart } from "lucide-react";
 
 const exploreLinks = [
   { name: "Home", href: "/" },
@@ -20,10 +20,10 @@ const supportLinks = [
 ];
 
 const socialLinks = [
-  { name: "Facebook", href: "https://facebook.com", icon: Facebook },
-  { name: "Instagram", href: "https://instagram.com", icon: Instagram },
-  { name: "Twitter", href: "https://x.com", icon: Twitter },
-  { name: "YouTube", href: "https://youtube.com", icon: Youtube },
+  { name: "Facebook", href: "https://facebook.com", icon: FacebookIcon },
+  { name: "Instagram", href: "https://instagram.com", icon: InstagramIcon },
+  { name: "X", href: "https://x.com", icon: XIcon },
+  { name: "YouTube", href: "https://youtube.com", icon: YoutubeIcon },
 ];
 
 export default function Footer() {
@@ -64,7 +64,7 @@ export default function Footer() {
                     aria-label={social.name}
                     className="flex h-9 w-9 items-center justify-center border border-white/15 text-white/60 transition hover:border-[#b9a6a0] hover:text-[#b9a6a0]"
                   >
-                    <Icon size={15} />
+                    <Icon />
                   </a>
                 );
               })}
@@ -161,7 +161,7 @@ export default function Footer() {
         {/* Copyright */}
         <div className="mt-14 flex flex-col items-center justify-between gap-3 border-t border-white/10 pt-7 sm:flex-row">
           <p className="text-xs text-white/45">
-            © {new Date().getFullYear()} WedPlan. All rights reserved.
+            © 2026 WedPlan. All rights reserved.
           </p>
 
           <p className="text-xs tracking-[0.2em] text-white/45">
@@ -171,5 +171,40 @@ export default function Footer() {
         </div>
       </div>
     </footer>
+  );
+}
+
+// Brand icons (lucide-react no longer ships brand logos)
+function FacebookIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M13.5 21v-7h2.4l.4-3h-2.8V9.1c0-.9.3-1.5 1.6-1.5H16V4.9c-.3 0-1.2-.1-2.2-.1-2.2 0-3.8 1.3-3.8 3.9V11H7.5v3h2.5v7h3.5z" />
+    </svg>
+  );
+}
+
+function InstagramIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <rect x="3.5" y="3.5" width="17" height="17" rx="4.5" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="17.2" cy="6.8" r="0.6" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function XIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M17.7 3h3l-6.9 7.9L22 21h-6.3l-4.6-6.1L5.6 21h-3l7.4-8.5L2 3h6.4l4.2 5.6L17.7 3zm-1.1 16h1.7L6.9 4.7H5.1L16.6 19z" />
+    </svg>
+  );
+}
+
+function YoutubeIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M21.6 7.2a2.6 2.6 0 0 0-1.8-1.9C18.2 5 12 5 12 5s-6.2 0-7.8.3A2.6 2.6 0 0 0 2.4 7.2 27.3 27.3 0 0 0 2 12a27.3 27.3 0 0 0 .4 4.8 2.6 2.6 0 0 0 1.8 1.9C5.8 19 12 19 12 19s6.2 0 7.8-.3a2.6 2.6 0 0 0 1.8-1.9A27.3 27.3 0 0 0 22 12a27.3 27.3 0 0 0-.4-4.8zM10 15.2V8.8l5.2 3.2-5.2 3.2z" />
+    </svg>
   );
 }
