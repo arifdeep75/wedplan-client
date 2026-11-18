@@ -89,7 +89,7 @@ export default function ProfileForm({ user }: ProfileFormProps) {
       });
 
       // Refresh the shared session store so the navbar shows the new name
-      await authClient.getSession();
+      authClient.$store.notify("$sessionSignal");
 
       toast.success("Profile updated");
       router.refresh();
