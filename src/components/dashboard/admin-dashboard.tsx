@@ -263,12 +263,7 @@ export default function AdminDashboard() {
         {(
           [
             { id: "users", label: `Users (${users.length})` },
-            {
-              id: "services",
-              label: `Services (${services.length}${
-                stats?.pendingServices ? ` · ${stats.pendingServices} new` : ""
-              })`,
-            },
+            { id: "services", label: `Services (${services.length})` },
             {
               id: "transactions",
               label: `Payments (${transactions.length})`,
@@ -279,13 +274,18 @@ export default function AdminDashboard() {
             key={item.id}
             type="button"
             onClick={() => setTab(item.id)}
-            className={`relative flex-1 px-2 pb-4 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors sm:flex-none sm:px-6 ${
+            className={`relative flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap px-2 pb-4 pt-2 text-[10px] font-semibold uppercase tracking-[0.1em] transition-colors sm:flex-none sm:px-6 sm:text-[11px] sm:tracking-[0.14em] ${
               tab === item.id
                 ? "text-[#252525]"
                 : "text-[#999999] hover:text-[#555555]"
             }`}
           >
             {item.label}
+            {item.id === "services" && (stats?.pendingServices ?? 0) > 0 && (
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#252525] px-1 text-[9px] leading-none text-white">
+                {stats?.pendingServices}
+              </span>
+            )}
             {tab === item.id && (
               <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#252525]" />
             )}
