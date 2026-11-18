@@ -106,6 +106,15 @@ export default function Navbar() {
               {link.name}
             </Link>
           ))}
+
+          {!isPending && user && (
+            <Link
+              href={dashboardPath(user.role)}
+              className="text-[13px] font-medium tracking-wide text-[#555555] transition-colors duration-200 hover:text-[#b9a6a0]"
+            >
+              Dashboard
+            </Link>
+          )}
         </div>
 
         {/* Desktop Actions */}
@@ -244,6 +253,16 @@ export default function Navbar() {
                 {link.name}
               </Link>
             ))}
+
+            {!isPending && user && (
+              <Link
+                href={dashboardPath(user.role)}
+                onClick={closeMobileMenu}
+                className="text-sm font-medium text-[#252525] transition-colors hover:text-[#b9a6a0]"
+              >
+                Dashboard
+              </Link>
+            )}
 
             <div className="my-1 border-t border-[#e9e7e4]" />
 
