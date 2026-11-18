@@ -5,6 +5,7 @@ import {
   BadgeCheck,
   CalendarDays,
   Check,
+  CircleDollarSign,
   Search,
   ShieldCheck,
   Store,
@@ -18,7 +19,7 @@ import StatCard from "@/components/dashboard/stat-card";
 import StatusBadge from "@/components/dashboard/status-badge";
 import { useRoleGuard } from "@/components/dashboard/use-role-guard";
 import { api } from "@/lib/api";
-import { formatDate, formatPrice } from "@/lib/format";
+import { formatCurrency, formatDate, formatPrice } from "@/lib/format";
 
 interface AdminUser {
   id: string;
@@ -57,10 +58,28 @@ interface Stats {
   approvedServices: number;
   totalBookings: number;
   pendingBookings: number;
+  premiumVendors: number;
+  totalRevenue: number;
+  paidTransactions: number;
+}
+
+interface AdminTransaction {
+  id: string;
+  vendorId: string;
+  vendorName: string;
+  vendorEmail: string;
+  plan: string;
+  amount: number;
+  currency: string;
+  status: string;
+  provider: string;
+  createdAt: string | null;
+  paidAt: string | null;
 }
 
 type LoadState = "loading" | "ready" | "error";
-type Tab = "users" | "services";
+type Tab = "users" | "services" | "transactions";
+type RoleFilter = "all" | "customer" | "vendor" | "admin";
 
 export default function AdminDashboard() {
   const { user, ready } = useRoleGuard("admin");
@@ -71,7 +90,9 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [services, setServices] = useState<AdminService[]>([]);
+  const [transactions, setTransactions] = useState<AdminTransaction[]>([]);
   const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
   const [updatingServiceId, setUpdatingServiceId] = useState<string | null>(null);
 
@@ -84,12 +105,16 @@ export default function AdminDashboard() {
       api<{ success: boolean; data: Stats }>("/api/admin/stats"),
       api<{ success: boolean; data: AdminUser[] }>("/api/admin/users"),
       api<{ success: boolean; data: AdminService[] }>("/api/services/admin/all"),
+      api<{ success: boolean; data: AdminTransaction[] }>(
+        "/api/admin/transactions"
+      ).catch(() => ({ success: true, data: [] })),
     ])
-      .then(([statsResult, usersResult, servicesResult]) => {
+      .then(([statsResult, usersResult, servicesResult, transactionsResult]) => {
         if (!active) return;
         setStats(statsResult.data);
         setUsers(usersResult.data);
         setServices(servicesResult.data);
+        setTransactions(transactionsResult.data);
         setState("ready");
       })
       .catch(() => {
@@ -105,15 +130,18 @@ export default function AdminDashboard() {
   const filteredUsers = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    if (!query) return users;
+    return users.filter((item) => {
+      if (roleFilter !== "all" && item.role !== roleFilter) return false;
 
-    return users.filter(
-      (item) =>
+      if (!query) return true;
+
+      return (
         item.name.toLowerCase().includes(query) ||
         item.email.toLowerCase().includes(query) ||
         item.role.toLowerCase().includes(query)
-    );
-  }, [users, search]);
+      );
+    });
+  }, [users, search, roleFilter]);
 
   const sortedServices = useMemo(() => {
     const rank: Record<string, number> = { pending: 0, approved: 1, rejected: 2 };
@@ -188,7 +216,7 @@ export default function AdminDashboard() {
       user={user}
     >
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
         <StatCard
           label="Total users"
           value={state === "ready" && stats ? stats.totalUsers : "—"}
@@ -214,6 +242,20 @@ export default function AdminDashboard() {
           hint={stats ? `${stats.pendingBookings} pending` : undefined}
           icon={CalendarDays}
         />
+        <StatCard
+          label="Revenue"
+          value={
+            state === "ready" && stats
+              ? formatCurrency(stats.totalRevenue)
+              : "—"
+          }
+          hint={
+            stats
+              ? `${stats.paidTransactions} paid · ${stats.premiumVendors} premium`
+              : undefined
+          }
+          icon={CircleDollarSign}
+        />
       </div>
 
       {/* Tabs */}
@@ -226,6 +268,10 @@ export default function AdminDashboard() {
               label: `Services (${services.length}${
                 stats?.pendingServices ? ` · ${stats.pendingServices} new` : ""
               })`,
+            },
+            {
+              id: "transactions",
+              label: `Payments (${transactions.length})`,
             },
           ] as const
         ).map((item) => (
@@ -265,17 +311,43 @@ export default function AdminDashboard() {
       {/* USERS TAB */}
       {tab === "users" && state !== "error" && (
         <div className="mt-8">
-          <div className="relative mb-4">
-            <Search
-              size={16}
-              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#999999]"
-            />
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by name, email, or role…"
-              className="h-11 w-full border border-[#e9e7e4] bg-white pl-11 pr-4 text-sm text-[#252525] outline-none transition-colors placeholder:text-[#aaaaaa] focus:border-[#252525]"
-            />
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <Search
+                size={16}
+                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#999999]"
+              />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search by name, email, or role…"
+                className="h-11 w-full border border-[#e9e7e4] bg-white pl-11 pr-4 text-sm text-[#252525] outline-none transition-colors placeholder:text-[#aaaaaa] focus:border-[#252525]"
+              />
+            </div>
+
+            <div className="flex gap-1.5 overflow-x-auto sm:shrink-0">
+              {(
+                [
+                  { id: "all", label: "All" },
+                  { id: "customer", label: "Customers" },
+                  { id: "vendor", label: "Vendors" },
+                  { id: "admin", label: "Admins" },
+                ] as const
+              ).map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setRoleFilter(item.id)}
+                  className={`h-11 shrink-0 border px-4 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors ${
+                    roleFilter === item.id
+                      ? "border-[#252525] bg-[#252525] text-white"
+                      : "border-[#e9e7e4] bg-white text-[#737373] hover:border-[#c9bcb7] hover:text-[#252525]"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {state === "loading" && (
@@ -291,7 +363,9 @@ export default function AdminDashboard() {
 
           {state === "ready" && filteredUsers.length === 0 && (
             <div className="border border-[#e9e7e4] bg-white px-6 py-12 text-center text-sm text-[#737373]">
-              No users match “{search}”.
+              {search.trim()
+                ? `No users match “${search}”${roleFilter === "all" ? "" : ` in ${roleFilter}s`}.`
+                : `No ${roleFilter === "all" ? "users" : `${roleFilter}s`} found.`}
             </div>
           )}
 
@@ -465,6 +539,110 @@ export default function AdminDashboard() {
                   </div>
                 </article>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TRANSACTIONS TAB */}
+      {tab === "transactions" && state !== "error" && (
+        <div className="mt-8">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#a58f88]">
+                Platform transactions
+              </p>
+              <h2 className="mt-1 font-heading text-2xl text-[#252525]">
+                Subscription payments
+              </h2>
+            </div>
+
+            <p className="text-xs text-[#999999]">
+              {stats
+                ? `${formatCurrency(stats.totalRevenue)} collected · ${
+                    stats.paidTransactions
+                  } paid`
+                : "—"}
+            </p>
+          </div>
+
+          {state === "loading" && (
+            <div className="space-y-2" aria-hidden="true">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="h-20 animate-pulse border border-[#e9e7e4] bg-white"
+                />
+              ))}
+            </div>
+          )}
+
+          {state === "ready" && transactions.length === 0 && (
+            <div className="border border-[#e9e7e4] bg-white px-6 py-12 text-center">
+              <CircleDollarSign
+                size={22}
+                strokeWidth={1.3}
+                className="mx-auto text-[#c9bcb7]"
+                aria-hidden="true"
+              />
+              <p className="mt-3 text-sm text-[#737373]">
+                No subscription payments have been recorded yet.
+              </p>
+            </div>
+          )}
+
+          {state === "ready" && transactions.length > 0 && (
+            <div className="border border-[#e9e7e4] bg-white">
+              <div className="hidden grid-cols-[1.6fr_0.9fr_0.7fr_1fr_0.7fr] gap-4 border-b border-[#f0eeeb] px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#999999] sm:grid">
+                <span>Vendor</span>
+                <span>Plan</span>
+                <span>Status</span>
+                <span>Date</span>
+                <span className="text-right">Amount</span>
+              </div>
+
+              <ul className="divide-y divide-[#f0eeeb]">
+                {transactions.map((transaction) => (
+                  <li
+                    key={transaction.id}
+                    className="px-4 py-4 sm:grid sm:grid-cols-[1.6fr_0.9fr_0.7fr_1fr_0.7fr] sm:items-center sm:gap-4 sm:px-6"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-[#252525]">
+                        {transaction.vendorName ||
+                          transaction.vendorEmail ||
+                          "Unknown vendor"}
+                      </p>
+                      <p className="mt-0.5 truncate text-[11px] text-[#999999]">
+                        {transaction.vendorEmail}
+                      </p>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2 sm:mt-0">
+                      <span className="text-xs capitalize text-[#555555]">
+                        {transaction.plan}
+                      </span>
+                      {transaction.provider === "demo" && (
+                        <span className="border border-[#e9e7e4] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-[#999999]">
+                          Demo
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="mt-2 sm:mt-0">
+                      <StatusBadge status={transaction.status} />
+                    </div>
+
+                    <p className="mt-2 text-[11px] text-[#999999] sm:mt-0">
+                      {formatDate(transaction.paidAt || transaction.createdAt)}
+                    </p>
+
+                    <p className="mt-2 text-sm font-semibold text-[#252525] sm:mt-0 sm:text-right">
+                      {formatCurrency(transaction.amount, transaction.currency)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>
