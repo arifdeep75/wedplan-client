@@ -104,7 +104,7 @@ export default function Home() {
   return (
     <div className="overflow-hidden bg-white">
       {/* Hero / Banner */}
-      <section className="relative flex min-h-[650px] items-center bg-[#252525] md:min-h-[720px]">
+      <section className="relative flex min-h-162.5 items-center bg-[#252525] md:min-h-180">
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{
