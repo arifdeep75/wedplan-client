@@ -249,8 +249,13 @@ export default function ServiceDetail({ serviceId }: { serviceId: string }) {
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#a58f88]">
                     Offered by
                   </p>
-                  <p className="truncate text-sm font-semibold text-[#252525]">
-                    {vendorLabel}
+                  <p className="flex items-center gap-2 truncate text-sm font-semibold text-[#252525]">
+                    <span className="truncate">{vendorLabel}</span>
+                    {service.vendor.isPremium && (
+                      <span className="shrink-0 border border-[#252525] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-[#252525]">
+                        Premium
+                      </span>
+                    )}
                   </p>
                   {service.vendor.businessName && (
                     <p className="truncate text-xs text-[#999999]">

@@ -22,8 +22,12 @@ import StatusBadge from "@/components/dashboard/status-badge";
 import ServiceForm, {
   type ServiceFormValues,
 } from "@/components/dashboard/service-form";
+import VendorSubscription, {
+  type SubscriptionStatus,
+} from "@/components/dashboard/vendor-subscription";
 import { useRoleGuard } from "@/components/dashboard/use-role-guard";
 import { api } from "@/lib/api";
+import { authClient } from "@/lib/auth-client";
 import { formatDate, formatPrice } from "@/lib/format";
 
 interface VendorService {
@@ -56,7 +60,7 @@ interface VendorBooking {
 }
 
 type LoadState = "loading" | "ready" | "error";
-type Tab = "services" | "bookings";
+type Tab = "services" | "bookings" | "subscription";
 
 export default function VendorDashboard() {
   const { user, ready } = useRoleGuard("vendor");
@@ -65,6 +69,9 @@ export default function VendorDashboard() {
   const [tab, setTab] = useState<Tab>("services");
   const [services, setServices] = useState<VendorService[]>([]);
   const [bookings, setBookings] = useState<VendorBooking[]>([]);
+  const [subscription, setSubscription] = useState<SubscriptionStatus | null>(
+    null
+  );
   const [state, setState] = useState<LoadState>("loading");
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -82,11 +89,15 @@ export default function VendorDashboard() {
     Promise.all([
       api<{ success: boolean; data: VendorService[] }>("/api/services/mine"),
       api<{ success: boolean; data: VendorBooking[] }>("/api/bookings/vendor"),
+      api<{ success: boolean; data: SubscriptionStatus }>(
+        "/api/payments/status"
+      ).catch(() => null),
     ])
-      .then(([servicesResult, bookingsResult]) => {
+      .then(([servicesResult, bookingsResult, subscriptionResult]) => {
         if (!active) return;
         setServices(servicesResult.data);
         setBookings(bookingsResult.data);
+        setSubscription(subscriptionResult?.data ?? null);
         setState("ready");
       })
       .catch(() => {
@@ -98,6 +109,47 @@ export default function VendorDashboard() {
       active = false;
     };
   }, [ready, reloadKey]);
+
+  // Coming back from Stripe Checkout: confirm the session server-side, then
+  // clean the query string so a refresh doesn't replay it.
+  useEffect(() => {
+    if (!ready) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get("payment");
+    const sessionId = params.get("session_id");
+
+    if (!payment) return;
+
+    window.history.replaceState({}, "", window.location.pathname);
+
+    if (payment === "cancelled") {
+      toast.info("Checkout cancelled — your plan is unchanged");
+      return;
+    }
+
+    if (payment !== "success" || !sessionId) return;
+
+    api<{ success: boolean; data: SubscriptionStatus }>("/api/payments/confirm", {
+      method: "POST",
+      body: JSON.stringify({ sessionId }),
+    })
+      .then((result) => {
+        setSubscription(result.data);
+        setTab("subscription");
+        setState("loading");
+        setReloadKey((key) => key + 1);
+        authClient.$store.notify("$sessionSignal");
+        toast.success("Premium activated");
+      })
+      .catch((error) => {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "We couldn't confirm your payment"
+        );
+      });
+  }, [ready]);
 
   const stats = useMemo(() => {
     const approved = services.filter((s) => s.status === "approved").length;
@@ -234,7 +286,11 @@ export default function VendorDashboard() {
         <StatCard
           label="Services"
           value={state === "ready" ? stats.totalServices : "—"}
-          hint={`${state === "ready" ? stats.approved : "—"} approved`}
+          hint={
+            subscription?.plan === "premium"
+              ? "Premium · unlimited"
+              : `${state === "ready" ? stats.approved : "—"} approved`
+          }
           icon={Store}
         />
         <StatCard
@@ -266,6 +322,7 @@ export default function VendorDashboard() {
                 stats.pending ? ` · ${stats.pending} new` : ""
               })`,
             },
+            { id: "subscription", label: "Plan" },
           ] as const
         ).map((item) => (
           <button
@@ -580,6 +637,44 @@ export default function VendorDashboard() {
                 </article>
               ))}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* SUBSCRIPTION TAB */}
+      {tab === "subscription" && (
+        <div className="mt-8">
+          {state === "loading" && (
+            <div className="grid gap-4 lg:grid-cols-2" aria-hidden="true">
+              <div className="h-80 animate-pulse border border-[#e9e7e4] bg-white" />
+              <div className="h-80 animate-pulse border border-[#e9e7e4] bg-white" />
+            </div>
+          )}
+
+          {state !== "loading" && !subscription && (
+            <div className="border border-[#e9e7e4] bg-white p-8 text-center">
+              <p className="font-heading text-xl text-[#252525]">
+                Subscription information is unavailable
+              </p>
+              <p className="mt-2 text-sm text-[#737373]">
+                We couldn&rsquo;t load your plan details. Please try again.
+              </p>
+              <button
+                type="button"
+                onClick={refresh}
+                className="mt-5 border border-[#252525] px-6 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] text-[#252525] transition hover:bg-[#252525] hover:text-white"
+              >
+                Try again
+              </button>
+            </div>
+          )}
+
+          {subscription && (
+            <VendorSubscription
+              status={subscription}
+              onChanged={setSubscription}
+              onServicesChanged={refresh}
+            />
           )}
         </div>
       )}

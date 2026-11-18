@@ -14,6 +14,7 @@ export interface ServiceCardData {
     name: string;
     image: string | null;
     businessName: string | null;
+    isPremium?: boolean;
   };
 }
 
@@ -49,6 +50,12 @@ export default function ServiceCard({ service }: ServiceCardProps) {
         <span className="absolute left-4 top-4 border border-white/60 bg-black/35 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-sm">
           {service.category}
         </span>
+
+        {service.vendor.isPremium && (
+          <span className="absolute right-4 top-4 border border-[#252525] bg-white px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#252525]">
+            Premium
+          </span>
+        )}
       </div>
 
       <div className="p-5">
