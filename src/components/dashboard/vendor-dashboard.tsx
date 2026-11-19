@@ -110,8 +110,8 @@ export default function VendorDashboard() {
     };
   }, [ready, reloadKey]);
 
-  // Coming back from Stripe Checkout: confirm the session server-side, then
-  // clean the query string so a refresh doesn't replay it.
+  // Coming back from Stripe Checkout: verify the session, then wait for the
+  // signature-verified webhook to grant premium. Nothing is unlocked here.
   useEffect(() => {
     if (!ready) return;
 
@@ -130,25 +130,52 @@ export default function VendorDashboard() {
 
     if (payment !== "success" || !sessionId) return;
 
-    api<{ success: boolean; data: SubscriptionStatus }>("/api/payments/confirm", {
-      method: "POST",
-      body: JSON.stringify({ sessionId }),
-    })
-      .then((result) => {
-        setSubscription(result.data);
-        setTab("subscription");
-        setState("loading");
-        setReloadKey((key) => key + 1);
-        authClient.$store.notify("$sessionSignal");
-        toast.success("Premium activated");
-      })
-      .catch((error) => {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : "We couldn't confirm your payment"
-        );
+    let active = true;
+
+    async function confirmAndWait() {
+      await api("/api/payments/confirm", {
+        method: "POST",
+        body: JSON.stringify({ sessionId }),
       });
+
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        const result = await api<{ success: boolean; data: SubscriptionStatus }>(
+          "/api/payments/status"
+        );
+
+        if (!active) return;
+
+        if (result.data.plan === "premium") {
+          setSubscription(result.data);
+          setTab("subscription");
+          setReloadKey((key) => key + 1);
+          authClient.$store.notify("$sessionSignal");
+          toast.success("Premium activated");
+          return;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        if (!active) return;
+      }
+
+      setTab("subscription");
+      setReloadKey((key) => key + 1);
+      toast.info(
+        "Payment received — premium will activate as soon as Stripe confirms it."
+      );
+    }
+
+    confirmAndWait().catch((error) => {
+      if (!active) return;
+      toast.error(
+        error instanceof Error ? error.message : "We couldn't confirm your payment"
+      );
+    });
+
+    return () => {
+      active = false;
+    };
   }, [ready]);
 
   const stats = useMemo(() => {

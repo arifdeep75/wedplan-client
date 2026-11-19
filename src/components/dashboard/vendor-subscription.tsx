@@ -32,6 +32,7 @@ export interface SubscriptionStatus {
   plan: "free" | "premium";
   expiresAt: string | null;
   stripeConfigured: boolean;
+  webhookConfigured: boolean;
   demoEnabled: boolean;
   price: { amount: number; currency: string; months: number };
   freeServiceLimit: number;
@@ -261,7 +262,11 @@ export default function VendorSubscription({
               <button
                 type="button"
                 onClick={startCheckout}
-                disabled={busy || (!status.stripeConfigured && !status.demoEnabled)}
+                disabled={
+                  busy ||
+                  (!status.stripeConfigured && !status.demoEnabled) ||
+                  (status.stripeConfigured && !status.webhookConfigured)
+                }
                 className="flex h-12 w-full items-center justify-center gap-2 bg-[#252525] text-xs font-semibold uppercase tracking-[0.12em] text-white transition hover:bg-[#444444] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {busy ? (
@@ -298,10 +303,18 @@ export default function VendorSubscription({
             </p>
           )}
 
-          {status.stripeConfigured && (
+          {status.stripeConfigured && !status.webhookConfigured && (
+            <p className="mt-4 border border-[#f0d9d9] bg-[#fbf6f6] px-4 py-3 text-[11px] leading-5 text-[#b91c1c]">
+              Payments are not fully configured yet. Upgrades are temporarily
+              unavailable.
+            </p>
+          )}
+
+          {status.stripeConfigured && status.webhookConfigured && (
             <p className="mt-4 flex items-start gap-2 text-[11px] leading-5 text-[#999999]">
               <ShieldCheck size={13} className="mt-0.5 shrink-0 text-[#b9a6a0]" />
               Secure checkout by Stripe. One-time payment, no auto-renewal.
+              Premium activates after Stripe confirms the payment.
             </p>
           )}
         </div>
