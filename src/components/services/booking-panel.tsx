@@ -7,6 +7,7 @@ import {
   CalendarDays,
   CheckCircle2,
   Loader2,
+  MapPin,
   MessageSquare,
   ShieldCheck,
 } from "lucide-react";
@@ -35,6 +36,7 @@ export default function BookingPanel({
   const user = (session?.user as AuthUser | undefined) ?? undefined;
 
   const [eventDate, setEventDate] = useState("");
+  const [eventLocation, setEventLocation] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -46,6 +48,11 @@ export default function BookingPanel({
 
     if (!eventDate) {
       setError("Please choose your event date");
+      return;
+    }
+
+    if (eventLocation.trim().length < 2) {
+      setError("Please add the event location");
       return;
     }
 
@@ -64,6 +71,7 @@ export default function BookingPanel({
         body: JSON.stringify({
           serviceId,
           eventDate,
+          eventLocation: eventLocation.trim(),
           ...(message.trim() ? { message: message.trim() } : {}),
         }),
       });
@@ -96,8 +104,9 @@ export default function BookingPanel({
         <p className="mt-2 text-sm leading-7 text-[#737373]">
           {vendorName} received your request for{" "}
           <span className="font-medium text-[#252525]">{serviceName}</span> on{" "}
-          {formatDate(eventDate)}. You&rsquo;ll see their reply on your
-          dashboard.
+          {formatDate(eventDate)} at{" "}
+          <span className="font-medium text-[#252525]">{eventLocation}</span>.
+          You&rsquo;ll see their reply on your dashboard.
         </p>
 
         <div className="mt-6 space-y-2">
@@ -219,6 +228,26 @@ export default function BookingPanel({
                 onChange={(event) => setEventDate(event.target.value)}
                 required
                 className="h-12 w-full border border-[#e9e7e4] bg-white px-4 text-sm text-[#252525] outline-none transition-colors focus:border-[#252525] focus:ring-4 focus:ring-[#252525]/5"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="booking-event-location"
+                className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#555555]"
+              >
+                <MapPin size={12} className="text-[#b9a6a0]" />
+                Event location
+              </label>
+              <input
+                id="booking-event-location"
+                type="text"
+                value={eventLocation}
+                onChange={(event) => setEventLocation(event.target.value)}
+                placeholder="Venue or city"
+                maxLength={200}
+                required
+                className="h-12 w-full border border-[#e9e7e4] bg-white px-4 text-sm text-[#252525] outline-none transition-colors placeholder:text-[#aaaaaa] focus:border-[#252525] focus:ring-4 focus:ring-[#252525]/5"
               />
             </div>
 

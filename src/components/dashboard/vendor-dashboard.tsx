@@ -8,6 +8,7 @@ import {
   Check,
   CircleDollarSign,
   Mail,
+  MapPin,
   Pencil,
   Plus,
   Store,
@@ -48,6 +49,7 @@ interface VendorBooking {
   serviceName: string;
   price: number;
   eventDate: string;
+  eventLocation: string | null;
   message: string | null;
   status: string;
   customer: {
@@ -606,6 +608,13 @@ export default function VendorDashboard() {
                           <CalendarDays size={13} className="text-[#b9a6a0]" />
                           {formatDate(booking.eventDate)}
                         </span>
+
+                        {booking.eventLocation && (
+                          <span className="inline-flex items-center gap-1.5">
+                            <MapPin size={13} className="text-[#b9a6a0]" />
+                            {booking.eventLocation}
+                          </span>
+                        )}
 
                         <span>{formatPrice(booking.price)}</span>
                       </div>

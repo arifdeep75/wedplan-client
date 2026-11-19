@@ -28,9 +28,16 @@ interface Booking {
   serviceName: string;
   price: number;
   eventDate: string;
+  eventLocation: string | null;
   message: string | null;
   status: string;
   image: string | null;
+  vendor: {
+    id: string;
+    name: string;
+    businessName: string | null;
+    image: string | null;
+  };
   createdAt: string | null;
 }
 
@@ -293,9 +300,34 @@ export default function CustomerDashboard() {
                         {formatDate(booking.eventDate)}
                       </span>
 
-                      <span className="inline-flex items-center gap-1.5">
-                        <MapPin size={13} className="text-[#b9a6a0]" />
-                        {formatPrice(booking.price)}
+                      {booking.eventLocation && (
+                        <span className="inline-flex items-center gap-1.5">
+                          <MapPin size={13} className="text-[#b9a6a0]" />
+                          {booking.eventLocation}
+                        </span>
+                      )}
+
+                      <span>{formatPrice(booking.price)}</span>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#f0eeeb] pt-3 text-xs text-[#737373]">
+                      {booking.vendor.image ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={booking.vendor.image}
+                          alt={booking.vendor.name}
+                          className="h-6 w-6 rounded-full border border-[#e9e7e4] object-cover"
+                        />
+                      ) : (
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#f4f4f2] text-[10px] font-semibold text-[#b9a6a0]">
+                          {(booking.vendor.businessName || booking.vendor.name || "?")
+                            .charAt(0)
+                            .toUpperCase()}
+                        </span>
+                      )}
+
+                      <span className="font-medium text-[#252525]">
+                        {booking.vendor.businessName || booking.vendor.name}
                       </span>
                     </div>
 
