@@ -107,7 +107,7 @@ export default function AdminDashboard() {
       api<{ success: boolean; data: AdminService[] }>("/api/services/admin/all"),
       api<{ success: boolean; data: AdminTransaction[] }>(
         "/api/admin/transactions"
-      ).catch(() => ({ success: true, data: [] })),
+      ),
     ])
       .then(([statsResult, usersResult, servicesResult, transactionsResult]) => {
         if (!active) return;
