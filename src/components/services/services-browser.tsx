@@ -24,6 +24,13 @@ const SORTS = [
 
 type LoadState = "loading" | "ready" | "error";
 
+interface ServicePagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
 export default function ServicesBrowser() {
   const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
@@ -31,6 +38,8 @@ export default function ServicesBrowser() {
   const [location, setLocation] = useState("");
   const deferredLocation = useDeferredValue(location.trim());
   const [sort, setSort] = useState<string>("newest");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
   const [category, setCategory] = useState<string>(() => {
     const requested = searchParams.get("category");
 
@@ -39,6 +48,13 @@ export default function ServicesBrowser() {
       : ALL_CATEGORIES;
   });
   const [services, setServices] = useState<ServiceCardData[]>([]);
+  const [pagination, setPagination] = useState<ServicePagination>({
+    page: 1,
+    limit: 24,
+    total: 0,
+    totalPages: 1,
+  });
+  const [page, setPage] = useState(1);
   const [state, setState] = useState<LoadState>("loading");
   const [reloadKey, setReloadKey] = useState(0);
   const reduceMotion = useReducedMotion();
@@ -47,12 +63,14 @@ export default function ServicesBrowser() {
     let active = true;
     const controller = new AbortController();
 
-    const params = new URLSearchParams({ limit: "24" });
+    const params = new URLSearchParams({ limit: "24", page: String(page) });
 
     if (category !== ALL_CATEGORIES) params.set("category", category);
     if (deferredSearch) params.set("search", deferredSearch);
     if (deferredLocation) params.set("location", deferredLocation);
     if (sort !== "newest") params.set("sort", sort);
+    if (minPrice.trim()) params.set("minPrice", minPrice.trim());
+    if (maxPrice.trim()) params.set("maxPrice", maxPrice.trim());
 
     fetch(`${API_URL}/api/services?${params.toString()}`, {
       signal: controller.signal,
@@ -61,6 +79,7 @@ export default function ServicesBrowser() {
         const result = (await response.json()) as {
           success?: boolean;
           data?: ServiceCardData[];
+          pagination?: ServicePagination;
         };
 
         if (
@@ -73,6 +92,14 @@ export default function ServicesBrowser() {
 
         if (active) {
           setServices(result.data);
+          setPagination(
+            result.pagination ?? {
+              page,
+              limit: 24,
+              total: result.data.length,
+              totalPages: 1,
+            }
+          );
           setState("ready");
         }
       })
@@ -84,7 +111,7 @@ export default function ServicesBrowser() {
       active = false;
       controller.abort();
     };
-  }, [deferredSearch, deferredLocation, sort, category, reloadKey]);
+  }, [deferredSearch, deferredLocation, sort, category, minPrice, maxPrice, page, reloadKey]);
 
   const isFiltering =
     state === "loading" ||
@@ -93,6 +120,8 @@ export default function ServicesBrowser() {
   const hasFilters =
     search.trim().length > 0 ||
     location.trim().length > 0 ||
+    minPrice.trim().length > 0 ||
+    maxPrice.trim().length > 0 ||
     sort !== "newest" ||
     category !== ALL_CATEGORIES;
 
@@ -100,7 +129,10 @@ export default function ServicesBrowser() {
     setSearch("");
     setLocation("");
     setSort("newest");
+    setMinPrice("");
+    setMaxPrice("");
     setCategory(ALL_CATEGORIES);
+    setPage(1);
   }
 
   return (
@@ -128,7 +160,7 @@ export default function ServicesBrowser() {
       {/* Filters */}
       <section className="border-b border-[#e9e7e4] bg-[#fafaf8]">
         <div className="mx-auto max-w-7xl px-5 py-6 md:px-8 lg:px-10">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="grid gap-3 lg:grid-cols-[minmax(240px,1fr)_220px_220px_260px]">
             <div className="relative w-full lg:flex-1">
               <Search
                 size={16}
@@ -137,16 +169,22 @@ export default function ServicesBrowser() {
 
               <input
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search services by name…"
-                aria-label="Search services by name"
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPage(1);
+                }}
+                placeholder="Search name, details or vendor…"
+                aria-label="Search by service, description or vendor"
                 className="h-12 w-full border border-[#e9e7e4] bg-white pl-11 pr-11 text-sm text-[#252525] outline-none transition-colors placeholder:text-[#aaaaaa] focus:border-[#252525] focus:ring-4 focus:ring-[#252525]/5"
               />
 
               {search && (
                 <button
                   type="button"
-                  onClick={() => setSearch("")}
+                  onClick={() => {
+                    setSearch("");
+                    setPage(1);
+                  }}
                   aria-label="Clear search"
                   className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center text-[#999999] transition hover:text-[#252525]"
                 >
@@ -163,7 +201,10 @@ export default function ServicesBrowser() {
 
               <input
                 value={location}
-                onChange={(event) => setLocation(event.target.value)}
+                onChange={(event) => {
+                  setLocation(event.target.value);
+                  setPage(1);
+                }}
                 placeholder="Filter by location…"
                 aria-label="Filter services by location"
                 className="h-12 w-full border border-[#e9e7e4] bg-white pl-11 pr-11 text-sm text-[#252525] outline-none transition-colors placeholder:text-[#aaaaaa] focus:border-[#252525] focus:ring-4 focus:ring-[#252525]/5"
@@ -172,7 +213,10 @@ export default function ServicesBrowser() {
               {location && (
                 <button
                   type="button"
-                  onClick={() => setLocation("")}
+                  onClick={() => {
+                    setLocation("");
+                    setPage(1);
+                  }}
                   aria-label="Clear location filter"
                   className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center text-[#999999] transition hover:text-[#252525]"
                 >
@@ -189,7 +233,10 @@ export default function ServicesBrowser() {
 
               <select
                 value={sort}
-                onChange={(event) => setSort(event.target.value)}
+                onChange={(event) => {
+                  setSort(event.target.value);
+                  setPage(1);
+                }}
                 aria-label="Sort services by price"
                 className="h-12 w-full appearance-none border border-[#e9e7e4] bg-white pl-11 pr-9 text-sm text-[#252525] outline-none transition-colors focus:border-[#252525] focus:ring-4 focus:ring-[#252525]/5"
               >
@@ -200,12 +247,42 @@ export default function ServicesBrowser() {
                 ))}
               </select>
             </div>
+
+            <fieldset className="grid grid-cols-2 gap-2">
+              <legend className="sr-only">Filter by price range</legend>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={minPrice}
+                onChange={(event) => {
+                  setMinPrice(event.target.value);
+                  setPage(1);
+                }}
+                placeholder="Min price"
+                aria-label="Minimum service price"
+                className="h-12 min-w-0 border border-[#e9e7e4] bg-white px-3 text-sm text-[#252525] outline-none placeholder:text-[#aaaaaa] focus:border-[#252525] focus:ring-4 focus:ring-[#252525]/5"
+              />
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={maxPrice}
+                onChange={(event) => {
+                  setMaxPrice(event.target.value);
+                  setPage(1);
+                }}
+                placeholder="Max price"
+                aria-label="Maximum service price"
+                className="h-12 min-w-0 border border-[#e9e7e4] bg-white px-3 text-sm text-[#252525] outline-none placeholder:text-[#aaaaaa] focus:border-[#252525] focus:ring-4 focus:ring-[#252525]/5"
+              />
+            </fieldset>
           </div>
 
           <p className="mt-3 text-xs text-[#999999]" aria-live="polite">
             {state === "ready"
-              ? `${services.length} ${
-                  services.length === 1 ? "service" : "services"
+              ? `${pagination.total} ${
+                  pagination.total === 1 ? "service" : "services"
                 }${hasFilters ? " found" : " available"}`
               : "Loading services…"}
             {isFiltering && state === "ready" && (
@@ -222,7 +299,10 @@ export default function ServicesBrowser() {
                 <button
                   key={item}
                   type="button"
-                  onClick={() => setCategory(item)}
+                  onClick={() => {
+                    setCategory(item);
+                    setPage(1);
+                  }}
                   aria-pressed={active}
                   className={`shrink-0 border px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors ${
                     active
@@ -316,6 +396,37 @@ export default function ServicesBrowser() {
                 </motion.div>
               ))}
             </div>
+          )}
+
+          {state === "ready" && pagination.totalPages > 1 && (
+            <nav
+              aria-label="Service results pages"
+              className="mt-10 flex items-center justify-center gap-4"
+            >
+              <button
+                type="button"
+                onClick={() => setPage(Math.max(1, pagination.page - 1))}
+                disabled={pagination.page <= 1}
+                className="h-10 border border-[#e9e7e4] bg-white px-4 text-xs font-semibold text-[#252525] transition hover:border-[#252525] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Previous
+              </button>
+              <span className="text-xs text-[#737373]" aria-live="polite">
+                Page {pagination.page} of {pagination.totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setPage(
+                    Math.min(pagination.totalPages, pagination.page + 1)
+                  )
+                }
+                disabled={pagination.page >= pagination.totalPages}
+                className="h-10 border border-[#e9e7e4] bg-white px-4 text-xs font-semibold text-[#252525] transition hover:border-[#252525] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Next
+              </button>
+            </nav>
           )}
         </div>
       </section>

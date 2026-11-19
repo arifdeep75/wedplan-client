@@ -115,29 +115,29 @@ export default function Home() {
 
         <div className="absolute inset-0 bg-black/45" />
 
-        <div className="relative z-10 mx-auto w-full max-w-7xl px-5 py-24 md:px-8 lg:px-10">
+        <div className="relative z-10 mx-auto w-full max-w-7xl px-5 py-16 md:px-8 md:py-24 lg:px-10">
           <div className="max-w-3xl">
             <Reveal>
-              <p className="mb-6 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.3em] text-white/80">
+              <p className="mb-5 flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/80 sm:mb-6 sm:text-xs sm:tracking-[0.3em]">
                 <span className="h-px w-9 bg-[#d8c8c3]" />
                 Your story. Your celebration.
               </p>
 
-              <h1 className="font-heading text-5xl leading-[1.12] tracking-tight text-white sm:text-6xl md:text-7xl lg:text-[82px]">
+              <h1 className="font-heading text-4xl leading-[1.08] tracking-tight text-white sm:text-6xl sm:leading-[1.12] md:text-7xl lg:text-[82px]">
                 Every love story deserves a
                 <span className="block italic text-[#e8dcd8]">
                   beautiful beginning.
                 </span>
               </h1>
 
-              <p className="mt-7 max-w-xl text-base leading-8 text-white/85 md:text-lg">
+              <p className="mt-5 max-w-xl text-sm leading-7 text-white/85 md:mt-7 md:text-lg md:leading-8">
                 Discover the right wedding professionals, find inspiration, and
                 bring your dream celebration to life — all in one place.
               </p>
             </Reveal>
 
             <Reveal delay={0.15}>
-              <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="mt-7 flex flex-col gap-3 sm:mt-10 sm:flex-row sm:items-center">
                 <Link
                   href="/services"
                   className="flex h-14 items-center justify-center gap-2 bg-white px-8 text-sm font-semibold text-[#252525] transition hover:bg-[#e8dcd8]"
@@ -156,7 +156,7 @@ export default function Home() {
             </Reveal>
 
             <Reveal delay={0.25}>
-              <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3 text-xs text-white/75">
+              <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-white/75 sm:mt-8 sm:gap-x-6 sm:gap-y-3 sm:text-xs">
                 <span className="flex items-center gap-2">
                   <ShieldCheck size={15} />
                   Discover trusted professionals

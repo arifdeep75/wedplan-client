@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { authClient, type AuthUser } from "@/lib/auth-client";
 import { api } from "@/lib/api";
 import { uploadProfileImage } from "@/lib/upload";
+import { validatePassword } from "@/lib/validation";
 
 interface ProfileFormProps {
   user: AuthUser & {
@@ -25,6 +26,10 @@ export default function ProfileForm({ user }: ProfileFormProps) {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -99,6 +104,54 @@ export default function ProfileForm({ user }: ProfileFormProps) {
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handlePasswordSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const passwordError = validatePassword(newPassword);
+
+    if (passwordError) {
+      toast.error(passwordError);
+      return;
+    }
+
+    if (newPassword.length > 128) {
+      toast.error("Password must be 128 characters or fewer");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error("New passwords do not match");
+      return;
+    }
+
+    setChangingPassword(true);
+
+    try {
+      const { error: changeError } = await authClient.changePassword({
+        currentPassword,
+        newPassword,
+        revokeOtherSessions: true,
+      });
+
+      if (changeError) {
+        throw new Error(changeError.message || "Failed to change password");
+      }
+
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      toast.success("Password changed successfully");
+    } catch (changeError) {
+      toast.error(
+        changeError instanceof Error
+          ? changeError.message
+          : "Failed to change password"
+      );
+    } finally {
+      setChangingPassword(false);
     }
   }
 
@@ -309,6 +362,97 @@ export default function ProfileForm({ user }: ProfileFormProps) {
               <Check size={14} />
             )}
             {saving ? "Saving…" : "Save changes"}
+          </button>
+        </div>
+      </form>
+
+      <form
+        onSubmit={handlePasswordSubmit}
+        className="border border-[#e9e7e4] bg-white p-6 sm:p-8 lg:col-span-2"
+      >
+        <div className="mb-6 border-b border-[#f0eeeb] pb-5">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#a58f88]">
+            Account security
+          </p>
+          <h2 className="mt-1 font-heading text-2xl text-[#252525]">
+            Change password
+          </h2>
+        </div>
+
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div>
+            <label
+              htmlFor="current-password"
+              className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#555555]"
+            >
+              Current password
+            </label>
+            <input
+              id="current-password"
+              type="password"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              required
+              className="h-12 w-full border border-[#e9e7e4] bg-white px-4 text-sm text-[#252525] outline-none focus:border-[#252525] focus:ring-4 focus:ring-[#252525]/5"
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="new-password"
+              className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#555555]"
+            >
+              New password
+            </label>
+            <input
+              id="new-password"
+              type="password"
+              autoComplete="new-password"
+              minLength={6}
+              maxLength={128}
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              required
+              className="h-12 w-full border border-[#e9e7e4] bg-white px-4 text-sm text-[#252525] outline-none focus:border-[#252525] focus:ring-4 focus:ring-[#252525]/5"
+            />
+            <p className="mt-1.5 text-xs text-[#999999]">
+              At least 6 characters, with an uppercase and a lowercase letter.
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="confirm-new-password"
+              className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#555555]"
+            >
+              Confirm new password
+            </label>
+            <input
+              id="confirm-new-password"
+              type="password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              required
+              className="h-12 w-full border border-[#e9e7e4] bg-white px-4 text-sm text-[#252525] outline-none focus:border-[#252525] focus:ring-4 focus:ring-[#252525]/5"
+            />
+          </div>
+        </div>
+
+        <div className="mt-6 flex justify-end border-t border-[#f0eeeb] pt-5">
+          <button
+            type="submit"
+            disabled={
+              changingPassword ||
+              !currentPassword ||
+              !newPassword ||
+              !confirmPassword
+            }
+            className="flex h-11 items-center justify-center gap-2 bg-[#252525] px-6 text-xs font-semibold uppercase tracking-[0.12em] text-white transition hover:bg-[#444444] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {changingPassword && <Loader2 size={14} className="animate-spin" />}
+            {changingPassword ? "Changing…" : "Change password"}
           </button>
         </div>
       </form>

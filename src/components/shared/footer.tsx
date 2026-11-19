@@ -20,11 +20,27 @@ const supportLinks = [
 ];
 
 const socialLinks = [
-  { name: "Facebook", href: "https://facebook.com", icon: FacebookIcon },
-  { name: "Instagram", href: "https://instagram.com", icon: InstagramIcon },
-  { name: "X", href: "https://x.com", icon: XIcon },
-  { name: "YouTube", href: "https://youtube.com", icon: YoutubeIcon },
-];
+  {
+    name: "Facebook",
+    href: process.env.NEXT_PUBLIC_FACEBOOK_URL,
+    icon: FacebookIcon,
+  },
+  {
+    name: "Instagram",
+    href: process.env.NEXT_PUBLIC_INSTAGRAM_URL,
+    icon: InstagramIcon,
+  },
+  { name: "X", href: process.env.NEXT_PUBLIC_X_URL, icon: XIcon },
+  {
+    name: "YouTube",
+    href: process.env.NEXT_PUBLIC_YOUTUBE_URL,
+    icon: YoutubeIcon,
+  },
+].filter((social) => Boolean(social.href));
+
+const contactEmail = process.env.NEXT_PUBLIC_CONTACT_EMAIL;
+const contactPhone = process.env.NEXT_PUBLIC_CONTACT_PHONE;
+const contactLocation = process.env.NEXT_PUBLIC_CONTACT_LOCATION;
 
 export default function Footer() {
   return (
@@ -51,7 +67,8 @@ export default function Footer() {
             </p>
 
             {/* Social media */}
-            <div className="mt-6 flex items-center gap-3">
+            {socialLinks.length > 0 && (
+              <div className="mt-6 flex items-center gap-3">
               {socialLinks.map((social) => {
                 const Icon = social.icon;
 
@@ -68,7 +85,8 @@ export default function Footer() {
                   </a>
                 );
               })}
-            </div>
+              </div>
+            )}
           </div>
 
           {/* Explore */}
@@ -118,25 +136,35 @@ export default function Footer() {
             </p>
 
             <ul className="space-y-3 text-sm text-white/60">
-              <li>
-                <a
-                  href="mailto:support@wedplan.com"
-                  className="transition-colors hover:text-white"
-                >
-                  support@wedplan.com
-                </a>
-              </li>
+              {contactEmail && (
+                <li>
+                  <a
+                    href={`mailto:${contactEmail}`}
+                    className="transition-colors hover:text-white"
+                  >
+                    {contactEmail}
+                  </a>
+                </li>
+              )}
 
-              <li>
-                <a
-                  href="tel:+8801700000000"
-                  className="transition-colors hover:text-white"
-                >
-                  +880 1700-000000
-                </a>
-              </li>
+              {contactPhone && (
+                <li>
+                  <a
+                    href={`tel:${contactPhone.replace(/[^\d+]/g, "")}`}
+                    className="transition-colors hover:text-white"
+                  >
+                    {contactPhone}
+                  </a>
+                </li>
+              )}
 
-              <li className="leading-6">Dhaka, Bangladesh</li>
+              {contactLocation && (
+                <li className="leading-6">{contactLocation}</li>
+              )}
+
+              {!contactEmail && !contactPhone && !contactLocation && (
+                <li className="leading-6">Contact details coming soon.</li>
+              )}
             </ul>
 
             <p className="mt-6 mb-5 text-xs font-semibold uppercase tracking-[0.2em] text-[#c6b2ab]">

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   ChevronRight,
@@ -16,6 +17,7 @@ import ServiceCard, {
 } from "@/components/services/service-card";
 import ServiceDetailSkeleton from "@/components/services/service-detail-skeleton";
 import { ApiError, api } from "@/lib/api";
+import { authClient } from "@/lib/auth-client";
 import { formatPrice } from "@/lib/format";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
@@ -28,6 +30,8 @@ interface ServiceDetailData extends ServiceCardData {
 type LoadState = "loading" | "ready" | "error" | "missing";
 
 export default function ServiceDetail({ serviceId }: { serviceId: string }) {
+  const router = useRouter();
+  const { data: session, isPending: authPending } = authClient.useSession();
   const [service, setService] = useState<ServiceDetailData | null>(null);
   const [state, setState] = useState<LoadState>("loading");
   const [reloadKey, setReloadKey] = useState(0);
@@ -35,6 +39,14 @@ export default function ServiceDetail({ serviceId }: { serviceId: string }) {
   const [related, setRelated] = useState<ServiceCardData[]>([]);
 
   useEffect(() => {
+    if (!authPending && !session) {
+      router.replace("/sign-in");
+    }
+  }, [authPending, router, session]);
+
+  useEffect(() => {
+    if (authPending || !session) return;
+
     let active = true;
 
     api<{ success: boolean; data: ServiceDetailData }>(
@@ -55,7 +67,7 @@ export default function ServiceDetail({ serviceId }: { serviceId: string }) {
     return () => {
       active = false;
     };
-  }, [serviceId, reloadKey]);
+  }, [authPending, serviceId, reloadKey, session]);
 
   const category = service?.category;
 
@@ -102,7 +114,7 @@ export default function ServiceDetail({ serviceId }: { serviceId: string }) {
       ? selectedImage
       : (gallery[0] ?? null);
 
-  if (state === "loading") {
+  if (authPending || !session || state === "loading") {
     return <ServiceDetailSkeleton />;
   }
 

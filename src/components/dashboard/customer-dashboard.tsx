@@ -452,8 +452,7 @@ export default function CustomerDashboard() {
 
                   {/* Actions */}
                   <div className="flex shrink-0 items-center gap-2 sm:flex-col sm:items-end">
-                    {booking.status === "pending" ||
-                    booking.status === "accepted" ? (
+                    {booking.status === "pending" ? (
                       cancellingId === booking.id ? (
                         <div className="flex items-center gap-2">
                           <button

@@ -18,8 +18,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "WedPlan | Your Wedding, Beautifully Planned",
-    template: "%s | WedPlan",
+    default: "WedPlan - Wedding Planning Platform",
+    template: "%s | WedPlan - Wedding Planning Platform",
   },
   description:
     "Discover trusted wedding vendors, explore beautiful services, and plan your perfect wedding with WedPlan.",

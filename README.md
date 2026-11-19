@@ -6,6 +6,27 @@ vendors manage their studio — built with **Next.js 16** (App Router),
 
 The API lives in a separate repository: `wedplan-server` (Express 5 + MongoDB).
 
+## Live links
+
+- **Live website:** https://wedplan-arifdeep75-client.vercel.app
+- **Client repository:** https://github.com/arifdeep75/wedplan-client
+- **Server repository:** https://github.com/arifdeep75/wedplan-server
+- **Live API:** https://wedplan-arifdeep75-server.vercel.app
+
+## Technology stack
+
+| Layer      | Technology                                        |
+| ---------- | ------------------------------------------------- |
+| Framework  | Next.js 16 (App Router, Cache Components)         |
+| Language   | TypeScript 5                                      |
+| Styling    | Tailwind CSS 4, custom editorial design system    |
+| Icons      | lucide-react                                      |
+| Motion     | Motion (Reveal animations)                        |
+| Auth       | Better Auth (email/password, Google, JWT bearer)  |
+| Toasts     | Sonner                                            |
+| Backend    | Express 5 + TypeScript + MongoDB (official driver)|
+| Payments   | Stripe Checkout + signature-verified webhooks     |
+
 ## What you can do
 
 **Visitors**
@@ -23,7 +44,7 @@ The API lives in a separate repository: `wedplan-server` (Express 5 + MongoDB).
 
 **Vendors**
 
-- Publish services (they enter admin review, then go live).
+- Publish services with up to six uploaded images (they enter admin review, then go live).
 - Edit, hide/show and delete their own listings.
 - Accept or decline incoming booking requests.
 - Upgrade to **Premium** — a one-time Stripe payment that unlocks unlimited
@@ -72,6 +93,13 @@ Open `http://localhost:3000`.
 | Variable              | Required | Description                    |
 | --------------------- | -------- | ------------------------------ |
 | `NEXT_PUBLIC_API_URL` | yes      | Base URL of the WedPlan API    |
+| `NEXT_PUBLIC_CONTACT_EMAIL` | no | Public support email displayed in the footer |
+| `NEXT_PUBLIC_CONTACT_PHONE` | no | Public support phone displayed in the footer |
+| `NEXT_PUBLIC_CONTACT_LOCATION` | no | Public contact location displayed in the footer |
+| `NEXT_PUBLIC_FACEBOOK_URL` | no | Official Facebook page URL |
+| `NEXT_PUBLIC_INSTAGRAM_URL` | no | Official Instagram profile URL |
+| `NEXT_PUBLIC_X_URL` | no | Official X profile URL |
+| `NEXT_PUBLIC_YOUTUBE_URL` | no | Official YouTube channel URL |
 
 Scripts:
 
@@ -89,8 +117,9 @@ npm run lint    # eslint
 - Creating or editing a service sets it back to **pending** — the admin must
   approve it before it appears in public browsing.
 - Checkout returns to `/dashboard/vendor?payment=success&session_id=…`. The
-  dashboard asks the API to verify the session, then removes the query string so
-  refreshing cannot replay it.
+  dashboard asks the API to verify the session, removes the query string, and
+  waits for the Stripe webhook to grant premium — the redirect itself never
+  unlocks anything.
 - When the API has no Stripe keys, the Plan tab shows an explicit demo option
   only if the server enables `PAYMENTS_DEMO`. Demo activations are labelled as
   such and never look like real payments.
@@ -99,15 +128,17 @@ npm run lint    # eslint
 
 ## Deployment
 
-The app deploys cleanly to Vercel:
+The app is deployed on Vercel at
+https://wedplan-arifdeep75-client.vercel.app.
 
-1. Import the repository and set `NEXT_PUBLIC_API_URL` to the deployed API URL
-   (for example `https://wedplan-api.onrender.com`).
-2. Build with `npm run build` (the default); no other configuration is needed.
-3. On the API, set `CLIENT_URL` to the deployed frontend origin so cookies,
-   CORS and Stripe redirects line up. Both domains should use HTTPS.
-4. Google OAuth, ImgBB and Stripe keys are configured on the API — see the
-   `wedplan-server` README.
+- `NEXT_PUBLIC_API_URL` points at the site's own origin.
+- `API_PROXY_URL` points at the API origin. `next.config.ts` rewrites `/api/*`
+  to it, so browser requests stay same-origin and the session cookie remains
+  first-party (no third-party cookie issues, no CORS).
+- On the API, `CLIENT_URL` is the deployed frontend origin so Better Auth
+  trusted origins and Stripe redirects line up.
+- Google OAuth, ImgBB and Stripe keys are configured on the API only — see the
+  `wedplan-server` README.
 
 ## Project structure
 
