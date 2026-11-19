@@ -1,8 +1,13 @@
 "use client";
 
-import { useDeferredValue, useEffect, useState } from "react";
+import {
+  useDeferredValue,
+  useEffect,
+  useState,
+} from "react";
+import { useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
-import { RotateCw, Search, X } from "lucide-react";
+import { ArrowDownWideNarrow, MapPin, RotateCw, Search, X } from "lucide-react";
 
 import ServiceCard, {
   type ServiceCardData,
@@ -11,13 +16,28 @@ import { SERVICE_CATEGORIES } from "@/lib/constants";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
 const ALL_CATEGORIES = "All";
+const SORTS = [
+  { value: "newest", label: "Newest first" },
+  { value: "price_asc", label: "Price: low to high" },
+  { value: "price_desc", label: "Price: high to low" },
+] as const;
 
 type LoadState = "loading" | "ready" | "error";
 
 export default function ServicesBrowser() {
+  const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search.trim());
-  const [category, setCategory] = useState<string>(ALL_CATEGORIES);
+  const [location, setLocation] = useState("");
+  const deferredLocation = useDeferredValue(location.trim());
+  const [sort, setSort] = useState<string>("newest");
+  const [category, setCategory] = useState<string>(() => {
+    const requested = searchParams.get("category");
+
+    return requested && (SERVICE_CATEGORIES as readonly string[]).includes(requested)
+      ? requested
+      : ALL_CATEGORIES;
+  });
   const [services, setServices] = useState<ServiceCardData[]>([]);
   const [state, setState] = useState<LoadState>("loading");
   const [reloadKey, setReloadKey] = useState(0);
@@ -31,6 +51,8 @@ export default function ServicesBrowser() {
 
     if (category !== ALL_CATEGORIES) params.set("category", category);
     if (deferredSearch) params.set("search", deferredSearch);
+    if (deferredLocation) params.set("location", deferredLocation);
+    if (sort !== "newest") params.set("sort", sort);
 
     fetch(`${API_URL}/api/services?${params.toString()}`, {
       signal: controller.signal,
@@ -62,14 +84,22 @@ export default function ServicesBrowser() {
       active = false;
       controller.abort();
     };
-  }, [deferredSearch, category, reloadKey]);
+  }, [deferredSearch, deferredLocation, sort, category, reloadKey]);
 
   const isFiltering =
-    state === "loading" || search.trim() !== deferredSearch;
-  const hasFilters = search.trim().length > 0 || category !== ALL_CATEGORIES;
+    state === "loading" ||
+    search.trim() !== deferredSearch ||
+    location.trim() !== deferredLocation;
+  const hasFilters =
+    search.trim().length > 0 ||
+    location.trim().length > 0 ||
+    sort !== "newest" ||
+    category !== ALL_CATEGORIES;
 
   function resetFilters() {
     setSearch("");
+    setLocation("");
+    setSort("newest");
     setCategory(ALL_CATEGORIES);
   }
 
@@ -98,8 +128,8 @@ export default function ServicesBrowser() {
       {/* Filters */}
       <section className="border-b border-[#e9e7e4] bg-[#fafaf8]">
         <div className="mx-auto max-w-7xl px-5 py-6 md:px-8 lg:px-10">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="relative w-full lg:max-w-sm">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="relative w-full lg:flex-1">
               <Search
                 size={16}
                 className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#999999]"
@@ -109,7 +139,7 @@ export default function ServicesBrowser() {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search services by name…"
-                aria-label="Search services"
+                aria-label="Search services by name"
                 className="h-12 w-full border border-[#e9e7e4] bg-white pl-11 pr-11 text-sm text-[#252525] outline-none transition-colors placeholder:text-[#aaaaaa] focus:border-[#252525] focus:ring-4 focus:ring-[#252525]/5"
               />
 
@@ -125,17 +155,63 @@ export default function ServicesBrowser() {
               )}
             </div>
 
-            <p className="text-xs text-[#999999]" aria-live="polite">
-              {state === "ready"
-                ? `${services.length} ${
-                    services.length === 1 ? "service" : "services"
-                  }${hasFilters ? " found" : " available"}`
-                : "Loading services…"}
-              {isFiltering && state === "ready" && (
-                <span className="ml-2 text-[#b9a6a0]">· updating</span>
+            <div className="relative w-full lg:w-56">
+              <MapPin
+                size={16}
+                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#999999]"
+              />
+
+              <input
+                value={location}
+                onChange={(event) => setLocation(event.target.value)}
+                placeholder="Filter by location…"
+                aria-label="Filter services by location"
+                className="h-12 w-full border border-[#e9e7e4] bg-white pl-11 pr-11 text-sm text-[#252525] outline-none transition-colors placeholder:text-[#aaaaaa] focus:border-[#252525] focus:ring-4 focus:ring-[#252525]/5"
+              />
+
+              {location && (
+                <button
+                  type="button"
+                  onClick={() => setLocation("")}
+                  aria-label="Clear location filter"
+                  className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center text-[#999999] transition hover:text-[#252525]"
+                >
+                  <X size={15} />
+                </button>
               )}
-            </p>
+            </div>
+
+            <div className="relative w-full lg:w-56">
+              <ArrowDownWideNarrow
+                size={16}
+                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#999999]"
+              />
+
+              <select
+                value={sort}
+                onChange={(event) => setSort(event.target.value)}
+                aria-label="Sort services by price"
+                className="h-12 w-full appearance-none border border-[#e9e7e4] bg-white pl-11 pr-9 text-sm text-[#252525] outline-none transition-colors focus:border-[#252525] focus:ring-4 focus:ring-[#252525]/5"
+              >
+                {SORTS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
+
+          <p className="mt-3 text-xs text-[#999999]" aria-live="polite">
+            {state === "ready"
+              ? `${services.length} ${
+                  services.length === 1 ? "service" : "services"
+                }${hasFilters ? " found" : " available"}`
+              : "Loading services…"}
+            {isFiltering && state === "ready" && (
+              <span className="ml-2 text-[#b9a6a0]">· updating</span>
+            )}
+          </p>
 
           {/* Category chips */}
           <div className="-mx-5 mt-5 flex gap-2 overflow-x-auto px-5 pb-1 md:mx-0 md:flex-wrap md:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
