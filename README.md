@@ -97,6 +97,18 @@ npm run lint    # eslint
 - Empty, loading and error states are handled on every data-driven screen; no
   `alert()` calls.
 
+## Deployment
+
+The app deploys cleanly to Vercel:
+
+1. Import the repository and set `NEXT_PUBLIC_API_URL` to the deployed API URL
+   (for example `https://wedplan-api.onrender.com`).
+2. Build with `npm run build` (the default); no other configuration is needed.
+3. On the API, set `CLIENT_URL` to the deployed frontend origin so cookies,
+   CORS and Stripe redirects line up. Both domains should use HTTPS.
+4. Google OAuth, ImgBB and Stripe keys are configured on the API — see the
+   `wedplan-server` README.
+
 ## Project structure
 
 ```
