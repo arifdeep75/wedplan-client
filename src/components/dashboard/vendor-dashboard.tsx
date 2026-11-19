@@ -243,7 +243,7 @@ export default function VendorDashboard() {
       price: Number(values.price),
       location: values.location,
       ...(values.description ? { description: values.description } : {}),
-      images: values.image ? [values.image] : [],
+      images: values.images,
     });
 
     try {
@@ -561,7 +561,7 @@ export default function VendorDashboard() {
                         price: String(editingService.price),
                         location: editingService.location,
                         description: editingService.description ?? "",
-                        image: editingService.images[0] ?? "",
+                        images: editingService.images,
                       }
                     : undefined
                 }

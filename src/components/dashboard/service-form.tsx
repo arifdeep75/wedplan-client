@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, X } from "lucide-react";
+import { ImagePlus, Loader2, X } from "lucide-react";
+import { toast } from "sonner";
 
 import { SERVICE_CATEGORIES } from "@/lib/constants";
+import { uploadImage } from "@/lib/upload";
 
 export interface ServiceFormValues {
   serviceName: string;
@@ -11,7 +13,7 @@ export interface ServiceFormValues {
   price: string;
   location: string;
   description: string;
-  image: string;
+  images: string[];
 }
 
 interface ServiceFormProps {
@@ -28,7 +30,7 @@ const emptyValues: ServiceFormValues = {
   price: "",
   location: "",
   description: "",
-  image: "",
+  images: [],
 };
 
 const inputClass =
@@ -48,12 +50,69 @@ export default function ServiceForm({
     initialValues ?? emptyValues
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [uploadingImages, setUploadingImages] = useState(false);
 
   function set<K extends keyof ServiceFormValues>(
     key: K,
     value: ServiceFormValues[K]
   ) {
     setValues((current) => ({ ...current, [key]: value }));
+  }
+
+  async function handleImageSelection(
+    event: React.ChangeEvent<HTMLInputElement>
+  ) {
+    const selected = Array.from(event.currentTarget.files ?? []);
+    event.currentTarget.value = "";
+
+    if (selected.length === 0) return;
+
+    const remaining = 6 - values.images.length;
+
+    if (remaining <= 0) {
+      toast.error("Up to 6 service images are allowed");
+      return;
+    }
+
+    if (selected.length > remaining) {
+      toast.error(`You can add ${remaining} more image${remaining === 1 ? "" : "s"}`);
+    }
+
+    const files = selected.slice(0, remaining);
+    const validFiles = files.filter((file) => file.type.startsWith("image/"));
+
+    if (validFiles.length !== files.length) {
+      toast.error("Please choose image files only");
+    }
+
+    if (validFiles.length === 0) return;
+
+    setUploadingImages(true);
+
+    try {
+      const results = await Promise.allSettled(validFiles.map(uploadImage));
+      const uploaded = results.flatMap((result) =>
+        result.status === "fulfilled" ? [result.value] : []
+      );
+      const failed = results.filter((result) => result.status === "rejected");
+
+      if (uploaded.length > 0) {
+        setValues((current) => ({
+          ...current,
+          images: [...current.images, ...uploaded].slice(0, 6),
+        }));
+        toast.success(`${uploaded.length} image${uploaded.length === 1 ? "" : "s"} uploaded`);
+      }
+
+      if (failed.length > 0) {
+        const reason = failed[0].reason;
+        toast.error(
+          reason instanceof Error ? reason.message : "Some images could not be uploaded"
+        );
+      }
+    } finally {
+      setUploadingImages(false);
+    }
   }
 
   function validate() {
@@ -65,8 +124,8 @@ export default function ServiceForm({
 
     const price = Number(values.price);
 
-    if (!Number.isFinite(price) || price < 0) {
-      next.price = "Enter a valid price";
+    if (!values.price.trim() || !Number.isInteger(price) || price < 0) {
+      next.price = "Enter a whole-number price";
     }
 
     if (values.location.trim().length < 2) {
@@ -77,8 +136,8 @@ export default function ServiceForm({
       next.description = "At least 10 characters (or leave empty)";
     }
 
-    if (values.image.trim() && !/^https?:\/\//i.test(values.image.trim())) {
-      next.image = "Must be a valid URL starting with http";
+    if (values.images.length > 6) {
+      next.images = "Up to 6 images are allowed";
     }
 
     setErrors(next);
@@ -96,7 +155,7 @@ export default function ServiceForm({
       serviceName: values.serviceName.trim(),
       location: values.location.trim(),
       description: values.description.trim(),
-      image: values.image.trim(),
+      images: values.images,
       price: String(Number(values.price)),
     });
   }
@@ -189,19 +248,64 @@ export default function ServiceForm({
           )}
         </div>
 
-        <div>
-          <label htmlFor="service-image" className={labelClass}>
-            Cover image URL <span className="text-[#aaaaaa]">(optional)</span>
+        <div className="sm:col-span-2">
+          <label htmlFor="service-images" className={labelClass}>
+            Service images <span className="text-[#aaaaaa]">(up to 6, 5 MB each)</span>
+          </label>
+          <label
+            htmlFor="service-images"
+            className="flex min-h-12 cursor-pointer items-center justify-center gap-2 border border-dashed border-[#d6d1cb] bg-[#fafaf8] px-4 py-3 text-sm text-[#555555] transition-colors hover:border-[#b9a6a0] disabled:opacity-60"
+          >
+            {uploadingImages ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <ImagePlus size={16} />
+            )}
+            {uploadingImages ? "Uploading images…" : "Choose image files"}
           </label>
           <input
-            id="service-image"
-            value={values.image}
-            onChange={(event) => set("image", event.target.value)}
-            placeholder="https://…"
-            className={inputClass}
+            id="service-images"
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            multiple
+            disabled={uploadingImages || submitting || values.images.length >= 6}
+            onChange={handleImageSelection}
+            className="sr-only"
           />
-          {errors.image && (
-            <p className="mt-1.5 text-xs text-[#b91c1c]">{errors.image}</p>
+
+          {values.images.length > 0 && (
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {values.images.map((image, index) => (
+                <div
+                  key={`${image}-${index}`}
+                  className="relative aspect-[4/3] overflow-hidden border border-[#e9e7e4] bg-[#f4f4f2]"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={image}
+                    alt={`Service image ${index + 1}`}
+                    className="h-full w-full object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      set(
+                        "images",
+                        values.images.filter((_, imageIndex) => imageIndex !== index)
+                      )
+                    }
+                    disabled={uploadingImages || submitting}
+                    aria-label={`Remove image ${index + 1}`}
+                    className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center bg-white/90 text-[#555555] hover:text-[#b91c1c] disabled:opacity-60"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {errors.images && (
+            <p className="mt-1.5 text-xs text-[#b91c1c]">{errors.images}</p>
           )}
         </div>
 
@@ -235,7 +339,7 @@ export default function ServiceForm({
 
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || uploadingImages}
           className="flex h-11 items-center justify-center gap-2 bg-[#252525] px-6 text-xs font-semibold uppercase tracking-[0.12em] text-white transition hover:bg-[#444444] disabled:opacity-60"
         >
           {submitting && <Loader2 size={14} className="animate-spin" />}

@@ -8,6 +8,10 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
  * Returns the hosted image URL.
  */
 export async function uploadProfileImage(file: File): Promise<string> {
+  return uploadImage(file);
+}
+
+export async function uploadImage(file: File): Promise<string> {
   if (file.size > MAX_IMAGE_BYTES) {
     throw new Error("Image must be smaller than 5 MB");
   }
@@ -18,6 +22,7 @@ export async function uploadProfileImage(file: File): Promise<string> {
     `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000"}/api/uploads/image`,
     {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ image: dataUrl, fileName: file.name }),
     }
