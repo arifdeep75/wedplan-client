@@ -7,6 +7,8 @@ import {
   CalendarDays,
   Check,
   CircleDollarSign,
+  CreditCard,
+  LayoutDashboard,
   Mail,
   MapPin,
   Pencil,
@@ -17,7 +19,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import DashboardShell from "@/components/dashboard/dashboard-shell";
+import DashboardShell, {
+  type DashboardNavItem,
+} from "@/components/dashboard/dashboard-shell";
 import StatCard from "@/components/dashboard/stat-card";
 import StatusBadge from "@/components/dashboard/status-badge";
 import ServiceForm, {
@@ -62,13 +66,13 @@ interface VendorBooking {
 }
 
 type LoadState = "loading" | "ready" | "error";
-type Tab = "services" | "bookings" | "subscription";
+type Tab = "overview" | "services" | "add" | "bookings" | "subscription";
 
 export default function VendorDashboard() {
   const { user, ready } = useRoleGuard("vendor");
   const reduceMotion = useReducedMotion();
 
-  const [tab, setTab] = useState<Tab>("services");
+  const [tab, setTab] = useState<Tab>("overview");
   const [services, setServices] = useState<VendorService[]>([]);
   const [bookings, setBookings] = useState<VendorBooking[]>([]);
   const [subscription, setSubscription] = useState<SubscriptionStatus | null>(
@@ -181,19 +185,44 @@ export default function VendorDashboard() {
   }, [ready]);
 
   const stats = useMemo(() => {
-    const approved = services.filter((s) => s.status === "approved").length;
+    const active = services.filter(
+      (s) => s.status === "approved" && s.isActive
+    ).length;
     const pending = bookings.filter((b) => b.status === "pending").length;
     const accepted = bookings.filter((b) => b.status === "accepted");
     const acceptedValue = accepted.reduce((sum, b) => sum + b.price, 0);
 
     return {
       totalServices: services.length,
-      approved,
+      active,
       pending,
       accepted: accepted.length,
       acceptedValue,
     };
   }, [services, bookings]);
+
+  const navItems: DashboardNavItem[] = [
+    { id: "overview", label: "Overview", icon: LayoutDashboard },
+    {
+      id: "services",
+      label: "My services",
+      icon: Store,
+      badge: services.length,
+    },
+    { id: "add", label: "Add service", icon: Plus },
+    {
+      id: "bookings",
+      label: "Bookings",
+      icon: CalendarDays,
+      badge: stats.pending,
+    },
+    { id: "subscription", label: "Subscription", icon: CreditCard },
+  ];
+
+  function startAdd() {
+    setFormMode("new");
+    setTab("add");
+  }
 
   const editingService =
     formMode && formMode !== "new"
@@ -221,6 +250,7 @@ export default function VendorDashboard() {
       if (formMode === "new") {
         await api("/api/services", { method: "POST", body });
         toast.success("Service submitted for admin approval");
+        setTab("services");
       } else {
         await api(`/api/services/${formMode}`, { method: "PATCH", body });
         toast.success("Service updated");
@@ -296,13 +326,23 @@ export default function VendorDashboard() {
       }
       description="Publish services, respond to couples, and keep every booking in view."
       user={user}
+      nav={{
+        items: navItems,
+        active: tab,
+        onSelect: (id) => {
+          if (id === "add") {
+            startAdd();
+            return;
+          }
+
+          setFormMode(null);
+          setTab(id as Tab);
+        },
+      }}
       actions={
         <button
           type="button"
-          onClick={() => {
-            setTab("services");
-            setFormMode("new");
-          }}
+          onClick={startAdd}
           className="flex h-11 items-center gap-2 bg-[#252525] px-5 text-xs font-semibold uppercase tracking-[0.12em] text-white transition hover:bg-[#444444]"
         >
           <Plus size={15} />
@@ -310,67 +350,138 @@ export default function VendorDashboard() {
         </button>
       }
     >
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <StatCard
-          label="Services"
-          value={state === "ready" ? stats.totalServices : "—"}
-          hint={
-            subscription?.plan === "premium"
-              ? "Premium · unlimited"
-              : `${state === "ready" ? stats.approved : "—"} approved`
-          }
-          icon={Store}
-        />
-        <StatCard
-          label="Pending requests"
-          value={state === "ready" ? stats.pending : "—"}
-          hint="Awaiting your reply"
-          icon={CalendarDays}
-        />
-        <StatCard
-          label="Accepted"
-          value={state === "ready" ? stats.accepted : "—"}
-          icon={BadgeCheck}
-        />
-        <StatCard
-          label="Booked value"
-          value={state === "ready" ? formatPrice(stats.acceptedValue) : "—"}
-          icon={CircleDollarSign}
-        />
-      </div>
+      {/* OVERVIEW */}
+      {tab === "overview" && (
+        <div>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            <StatCard
+              label="Total services"
+              value={state === "ready" ? stats.totalServices : "—"}
+              icon={Store}
+            />
+            <StatCard
+              label="Active services"
+              value={state === "ready" ? stats.active : "—"}
+              hint="Approved and live"
+              icon={BadgeCheck}
+            />
+            <StatCard
+              label="Pending requests"
+              value={state === "ready" ? stats.pending : "—"}
+              hint="Awaiting your reply"
+              icon={CalendarDays}
+            />
+            <StatCard
+              label="Accepted bookings"
+              value={state === "ready" ? stats.accepted : "—"}
+              hint={
+                state === "ready"
+                  ? `${formatPrice(stats.acceptedValue)} booked`
+                  : undefined
+              }
+              icon={CircleDollarSign}
+            />
+          </div>
 
-      {/* Tabs */}
-      <div className="mt-8 flex border-b border-[#e9e7e4]">
-        {(
-          [
-            { id: "services", label: `Services (${services.length})` },
-            { id: "bookings", label: `Bookings (${bookings.length})` },
-            { id: "subscription", label: "Plan" },
-          ] as const
-        ).map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => setTab(item.id)}
-            className={`relative flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap px-2 pb-4 pt-2 text-[10px] font-semibold uppercase tracking-[0.1em] transition-colors sm:flex-none sm:px-6 sm:text-[11px] sm:tracking-[0.14em] ${
-              tab === item.id
-                ? "text-[#252525]"
-                : "text-[#999999] hover:text-[#555555]"
-            }`}
-          >
-            {item.label}
-            {item.id === "bookings" && stats.pending > 0 && (
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#252525] px-1 text-[9px] leading-none text-white">
-                {stats.pending}
-              </span>
-            )}
-            {tab === item.id && (
-              <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#252525]" />
-            )}
-          </button>
-        ))}
-      </div>
+          <div className="mt-8 grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+            <div className="border border-[#e9e7e4] bg-white p-5 sm:p-6">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#a58f88]">
+                Current subscription
+              </p>
+
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <h2 className="font-heading text-2xl text-[#252525]">
+                  {subscription?.plan === "premium"
+                    ? "Premium"
+                    : "Free plan"}
+                </h2>
+
+                {subscription?.plan === "premium" && (
+                  <span className="inline-flex items-center gap-1.5 bg-[#f4f4f2] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9b8179]">
+                    <BadgeCheck size={12} />
+                    Premium vendor
+                  </span>
+                )}
+              </div>
+
+              <p className="mt-2 text-sm leading-6 text-[#737373]">
+                {subscription?.plan === "premium"
+                  ? `Unlimited active services${
+                      subscription.expiresAt
+                        ? ` · renews ${formatDate(subscription.expiresAt)}`
+                        : ""
+                    }`
+                  : `Up to ${subscription?.freeServiceLimit ?? 3} active services, with unlimited listings after upgrading.`}
+              </p>
+
+              <button
+                type="button"
+                onClick={() => setTab("subscription")}
+                className="mt-5 inline-flex items-center gap-2 border border-[#252525] px-5 py-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#252525] transition hover:bg-[#252525] hover:text-white"
+              >
+                {subscription?.plan === "premium"
+                  ? "Manage plan"
+                  : "Upgrade to premium"}
+              </button>
+            </div>
+
+            <div className="border border-[#e9e7e4] bg-white p-5 sm:p-6">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#a58f88]">
+                  Latest requests
+                </p>
+
+                {bookings.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setTab("bookings")}
+                    className="text-[11px] font-semibold text-[#737373] transition hover:text-[#252525]"
+                  >
+                    View all
+                  </button>
+                )}
+              </div>
+
+              {state === "loading" && (
+                <div className="mt-4 space-y-2" aria-hidden="true">
+                  {Array.from({ length: 2 }).map((_, index) => (
+                    <div key={index} className="h-10 animate-pulse bg-[#f4f4f2]" />
+                  ))}
+                </div>
+              )}
+
+              {state === "ready" && bookings.length === 0 && (
+                <p className="mt-4 text-sm leading-6 text-[#737373]">
+                  No requests yet. Once couples book your services, they will
+                  appear here for review.
+                </p>
+              )}
+
+              {state === "ready" && bookings.length > 0 && (
+                <ul className="mt-4 divide-y divide-[#f0eeeb]">
+                  {bookings.slice(0, 3).map((booking) => (
+                    <li
+                      key={booking.id}
+                      className="flex items-center justify-between gap-3 py-3 first:pt-0"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-[#252525]">
+                          {booking.customer.name}
+                        </p>
+                        <p className="mt-0.5 truncate text-[11px] text-[#999999]">
+                          {booking.serviceName} · {formatDate(booking.eventDate)}
+                        </p>
+                      </div>
+
+                      <StatusBadge status={booking.status} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {state === "error" && (
         <div className="mt-8 border border-[#e9e7e4] bg-white p-8 text-center">
@@ -387,13 +498,61 @@ export default function VendorDashboard() {
         </div>
       )}
 
+      {/* ADD SERVICE TAB */}
+      {tab === "add" && (
+        <div>
+          <div className="mb-6 border-b border-[#e9e7e4] pb-4">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#a58f88]">
+              New listing
+            </p>
+            <h2 className="mt-1 font-heading text-2xl text-[#252525]">
+              Add a service
+            </h2>
+            <p className="mt-2 max-w-xl text-sm leading-7 text-[#737373]">
+              Upload a photo, set your price and location. Every new service is
+              reviewed by our team before it appears in public browsing.
+            </p>
+          </div>
+
+          <ServiceForm
+            title="Service details"
+            submitting={submitting}
+            onSubmit={handleSaveService}
+            onCancel={() => {
+              setFormMode(null);
+              setTab("services");
+            }}
+          />
+        </div>
+      )}
+
       {/* SERVICES TAB */}
       {tab === "services" && (
-        <div className="mt-8">
-          {formMode && (
+        <div>
+          <div className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b border-[#e9e7e4] pb-4">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#a58f88]">
+                Your listings
+              </p>
+              <h2 className="mt-1 font-heading text-2xl text-[#252525]">
+                My services
+              </h2>
+            </div>
+
+            <button
+              type="button"
+              onClick={startAdd}
+              className="inline-flex items-center gap-2 border border-[#252525] px-4 py-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#252525] transition hover:bg-[#252525] hover:text-white"
+            >
+              <Plus size={13} />
+              Add service
+            </button>
+          </div>
+
+          {formMode && formMode !== "new" && (
             <div className="mb-6">
               <ServiceForm
-                title={formMode === "new" ? "Add a new service" : "Edit service"}
+                title="Edit service"
                 initialValues={
                   editingService
                     ? {
@@ -440,7 +599,7 @@ export default function VendorDashboard() {
               </p>
               <button
                 type="button"
-                onClick={() => setFormMode("new")}
+                onClick={startAdd}
                 className="mt-7 inline-flex items-center gap-2 bg-[#252525] px-6 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-white transition hover:bg-[#444444]"
               >
                 <Plus size={14} />
@@ -554,7 +713,16 @@ export default function VendorDashboard() {
 
       {/* BOOKINGS TAB */}
       {tab === "bookings" && (
-        <div className="mt-8">
+        <div>
+          <div className="mb-6 border-b border-[#e9e7e4] pb-4">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#a58f88]">
+              Inbox
+            </p>
+            <h2 className="mt-1 font-heading text-2xl text-[#252525]">
+              Booking requests
+            </h2>
+          </div>
+
           {state === "loading" && (
             <div className="space-y-3" aria-hidden="true">
               {Array.from({ length: 3 }).map((_, index) => (
@@ -679,7 +847,7 @@ export default function VendorDashboard() {
 
       {/* SUBSCRIPTION TAB */}
       {tab === "subscription" && (
-        <div className="mt-8">
+        <div>
           {state === "loading" && (
             <div className="grid gap-4 lg:grid-cols-2" aria-hidden="true">
               <div className="h-80 animate-pulse border border-[#e9e7e4] bg-white" />

@@ -10,12 +10,16 @@ import {
   Clock,
   Compass,
   Heart,
+  LayoutDashboard,
   MapPin,
   X,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import DashboardShell from "@/components/dashboard/dashboard-shell";
+import DashboardShell, {
+  type DashboardNavItem,
+} from "@/components/dashboard/dashboard-shell";
 import StatCard from "@/components/dashboard/stat-card";
 import StatusBadge from "@/components/dashboard/status-badge";
 import { useRoleGuard } from "@/components/dashboard/use-role-guard";
@@ -42,11 +46,13 @@ interface Booking {
 }
 
 type LoadState = "loading" | "ready" | "error";
+type Section = "overview" | "bookings";
 
 export default function CustomerDashboard() {
   const { user, ready } = useRoleGuard("customer");
   const reduceMotion = useReducedMotion();
 
+  const [section, setSection] = useState<Section>("overview");
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [state, setState] = useState<LoadState>("loading");
   const [reloadKey, setReloadKey] = useState(0);
@@ -77,15 +83,27 @@ export default function CustomerDashboard() {
   const stats = useMemo(() => {
     const pending = bookings.filter((b) => b.status === "pending").length;
     const accepted = bookings.filter((b) => b.status === "accepted");
+    const rejected = bookings.filter((b) => b.status === "rejected").length;
     const confirmedValue = accepted.reduce((sum, b) => sum + b.price, 0);
 
     return {
       total: bookings.length,
       pending,
       accepted: accepted.length,
+      rejected,
       confirmedValue,
     };
   }, [bookings]);
+
+  const navItems: DashboardNavItem[] = [
+    { id: "overview", label: "Overview", icon: LayoutDashboard },
+    {
+      id: "bookings",
+      label: "My bookings",
+      icon: CalendarDays,
+      badge: stats.pending,
+    },
+  ];
 
   async function cancelBooking(id: string) {
     setUpdatingId(id);
@@ -122,6 +140,11 @@ export default function CustomerDashboard() {
       }
       description="Track every request, revisit your bookings, and keep your celebration moving forward."
       user={user}
+      nav={{
+        items: navItems,
+        active: section,
+        onSelect: (id) => setSection(id as Section),
+      }}
       actions={
         <Link
           href="/services"
@@ -136,40 +159,129 @@ export default function CustomerDashboard() {
         </Link>
       }
     >
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <StatCard
-          label="Total requests"
-          value={state === "ready" ? stats.total : "—"}
-          icon={CalendarDays}
-        />
-        <StatCard
-          label="Awaiting reply"
-          value={state === "ready" ? stats.pending : "—"}
-          icon={Clock}
-        />
-        <StatCard
-          label="Accepted"
-          value={state === "ready" ? stats.accepted : "—"}
-          hint="Confirmed by vendors"
-          icon={CheckCircle2}
-        />
-        <StatCard
-          label="Confirmed value"
-          value={state === "ready" ? formatPrice(stats.confirmedValue) : "—"}
-          icon={Heart}
-        />
-      </div>
+      {/* Overview */}
+      {section === "overview" && (
+        <div>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            <StatCard
+              label="Total requests"
+              value={state === "ready" ? stats.total : "—"}
+              icon={CalendarDays}
+            />
+            <StatCard
+              label="Pending"
+              value={state === "ready" ? stats.pending : "—"}
+              hint="Awaiting vendor reply"
+              icon={Clock}
+            />
+            <StatCard
+              label="Accepted"
+              value={state === "ready" ? stats.accepted : "—"}
+              hint={
+                state === "ready"
+                  ? `${formatPrice(stats.confirmedValue)} confirmed`
+                  : undefined
+              }
+              icon={CheckCircle2}
+            />
+            <StatCard
+              label="Rejected"
+              value={state === "ready" ? stats.rejected : "—"}
+              icon={XCircle}
+            />
+          </div>
+
+          <div className="mt-8 border border-[#e9e7e4] bg-white">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#f0eeeb] px-5 py-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#a58f88]">
+                  Latest activity
+                </p>
+                <h2 className="mt-1 font-heading text-xl text-[#252525]">
+                  Recent requests
+                </h2>
+              </div>
+
+              {bookings.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSection("bookings")}
+                  className="text-xs font-semibold text-[#737373] transition hover:text-[#252525]"
+                >
+                  View all bookings
+                </button>
+              )}
+            </div>
+
+            {state === "loading" && (
+              <div className="space-y-2 p-5" aria-hidden="true">
+                {Array.from({ length: 2 }).map((_, index) => (
+                  <div key={index} className="h-12 animate-pulse bg-[#f4f4f2]" />
+                ))}
+              </div>
+            )}
+
+            {state === "ready" && bookings.length === 0 && (
+              <div className="px-5 py-10 text-center">
+                <p className="text-sm text-[#737373]">
+                  No requests yet — your first booking will appear here.
+                </p>
+                <Link
+                  href="/services"
+                  className="mt-5 inline-flex items-center gap-2 bg-[#252525] px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-white transition hover:bg-[#444444]"
+                >
+                  Explore services
+                  <ArrowUpRight size={13} />
+                </Link>
+              </div>
+            )}
+
+            {state === "ready" && bookings.length > 0 && (
+              <ul className="divide-y divide-[#f0eeeb]">
+                {bookings.slice(0, 3).map((booking) => (
+                  <li
+                    key={booking.id}
+                    className="flex flex-wrap items-center justify-between gap-3 px-5 py-4"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-[#252525]">
+                        {booking.serviceName}
+                      </p>
+                      <p className="mt-1 text-[11px] text-[#999999]">
+                        {formatDate(booking.eventDate)}
+                        {booking.eventLocation
+                          ? ` · ${booking.eventLocation}`
+                          : ""}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <StatusBadge status={booking.status} />
+                      <Link
+                        href={`/services/${booking.serviceId}`}
+                        className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#252525] transition hover:text-[#9b8179]"
+                      >
+                        View
+                      </Link>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Bookings */}
-      <section className="mt-10 sm:mt-12">
+      {section === "bookings" && (
+      <section className="mt-0">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b border-[#e9e7e4] pb-4">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#a58f88]">
               Your requests
             </p>
             <h2 className="mt-1 font-heading text-2xl text-[#252525]">
-              Bookings
+              My bookings
             </h2>
           </div>
 
@@ -389,6 +501,7 @@ export default function CustomerDashboard() {
           </div>
         )}
       </section>
+      )}
     </DashboardShell>
   );
 }

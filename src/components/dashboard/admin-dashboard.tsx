@@ -2,19 +2,21 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  BadgeCheck,
-  CalendarDays,
   Check,
   CircleDollarSign,
+  LayoutDashboard,
   Search,
   ShieldCheck,
   Store,
+  Trash2,
   Users,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import DashboardShell from "@/components/dashboard/dashboard-shell";
+import DashboardShell, {
+  type DashboardNavItem,
+} from "@/components/dashboard/dashboard-shell";
 import StatCard from "@/components/dashboard/stat-card";
 import StatusBadge from "@/components/dashboard/status-badge";
 import { useRoleGuard } from "@/components/dashboard/use-role-guard";
@@ -54,11 +56,13 @@ interface Stats {
   totalUsers: number;
   customers: number;
   vendors: number;
+  totalServices: number;
   pendingServices: number;
   approvedServices: number;
   totalBookings: number;
   pendingBookings: number;
   premiumVendors: number;
+  totalTransactions: number;
   totalRevenue: number;
   paidTransactions: number;
 }
@@ -78,13 +82,14 @@ interface AdminTransaction {
 }
 
 type LoadState = "loading" | "ready" | "error";
-type Tab = "users" | "services" | "transactions";
+type Section = "overview" | "users" | "services" | "transactions";
 type RoleFilter = "all" | "customer" | "vendor" | "admin";
+type ServiceFilter = "all" | "pending" | "approved" | "rejected";
 
 export default function AdminDashboard() {
   const { user, ready } = useRoleGuard("admin");
 
-  const [tab, setTab] = useState<Tab>("users");
+  const [section, setSection] = useState<Section>("overview");
   const [state, setState] = useState<LoadState>("loading");
   const [reloadKey, setReloadKey] = useState(0);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -93,8 +98,11 @@ export default function AdminDashboard() {
   const [transactions, setTransactions] = useState<AdminTransaction[]>([]);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
+  const [serviceSearch, setServiceSearch] = useState("");
+  const [serviceFilter, setServiceFilter] = useState<ServiceFilter>("all");
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
   const [updatingServiceId, setUpdatingServiceId] = useState<string | null>(null);
+  const [deletingServiceId, setDeletingServiceId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!ready) return;
@@ -145,11 +153,49 @@ export default function AdminDashboard() {
 
   const sortedServices = useMemo(() => {
     const rank: Record<string, number> = { pending: 0, approved: 1, rejected: 2 };
+    const query = serviceSearch.trim().toLowerCase();
 
-    return [...services].sort(
-      (a, b) => (rank[a.status] ?? 3) - (rank[b.status] ?? 3)
-    );
-  }, [services]);
+    return [...services]
+      .filter((service) => {
+        if (serviceFilter !== "all" && service.status !== serviceFilter) {
+          return false;
+        }
+
+        if (!query) return true;
+
+        return (
+          service.serviceName.toLowerCase().includes(query) ||
+          service.category.toLowerCase().includes(query) ||
+          service.location.toLowerCase().includes(query) ||
+          (service.vendor.businessName || service.vendor.name)
+            .toLowerCase()
+            .includes(query)
+        );
+      })
+      .sort((a, b) => (rank[a.status] ?? 3) - (rank[b.status] ?? 3));
+  }, [services, serviceSearch, serviceFilter]);
+
+  const navItems: DashboardNavItem[] = [
+    { id: "overview", label: "Overview", icon: LayoutDashboard },
+    {
+      id: "users",
+      label: "Manage users",
+      icon: Users,
+      badge: users.length,
+    },
+    {
+      id: "services",
+      label: "Manage services",
+      icon: Store,
+      badge: stats?.pendingServices ?? 0,
+    },
+    {
+      id: "transactions",
+      label: "Transactions",
+      icon: CircleDollarSign,
+      badge: transactions.length,
+    },
+  ];
 
   function refresh() {
     setState("loading");
@@ -203,6 +249,23 @@ export default function AdminDashboard() {
     }
   }
 
+  async function deleteService(id: string) {
+    setUpdatingServiceId(id);
+
+    try {
+      await api(`/api/services/${id}`, { method: "DELETE" });
+      toast.success("Service deleted");
+      setDeletingServiceId(null);
+      refresh();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to delete service"
+      );
+    } finally {
+      setUpdatingServiceId(null);
+    }
+  }
+
   return (
     <DashboardShell
       kicker="Admin dashboard"
@@ -214,84 +277,185 @@ export default function AdminDashboard() {
       }
       description="Moderate services, manage accounts, and keep WedPlan a trusted place to plan."
       user={user}
+      nav={{
+        items: navItems,
+        active: section,
+        onSelect: (id) => setSection(id as Section),
+      }}
     >
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
-        <StatCard
-          label="Total users"
-          value={state === "ready" && stats ? stats.totalUsers : "—"}
-          hint={
-            stats ? `${stats.customers} customers · ${stats.vendors} vendors` : undefined
-          }
-          icon={Users}
-        />
-        <StatCard
-          label="Pending approvals"
-          value={state === "ready" && stats ? stats.pendingServices : "—"}
-          hint="Services awaiting review"
-          icon={ShieldCheck}
-        />
-        <StatCard
-          label="Live services"
-          value={state === "ready" && stats ? stats.approvedServices : "—"}
-          icon={Store}
-        />
-        <StatCard
-          label="Bookings"
-          value={state === "ready" && stats ? stats.totalBookings : "—"}
-          hint={stats ? `${stats.pendingBookings} pending` : undefined}
-          icon={CalendarDays}
-        />
-        <StatCard
-          label="Revenue"
-          value={
-            state === "ready" && stats
-              ? formatCurrency(stats.totalRevenue)
-              : "—"
-          }
-          hint={
-            stats
-              ? `${stats.paidTransactions} paid · ${stats.premiumVendors} premium`
-              : undefined
-          }
-          icon={CircleDollarSign}
-        />
-      </div>
+      {/* OVERVIEW */}
+      {section === "overview" && (
+        <div>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
+            <StatCard
+              label="Total users"
+              value={state === "ready" && stats ? stats.totalUsers : "—"}
+              hint={
+                stats
+                  ? `${stats.customers} customers · ${stats.vendors} vendors`
+                  : undefined
+              }
+              icon={Users}
+            />
+            <StatCard
+              label="Total vendors"
+              value={state === "ready" && stats ? stats.vendors : "—"}
+              hint={stats ? `${stats.premiumVendors} premium` : undefined}
+              icon={Store}
+            />
+            <StatCard
+              label="Total customers"
+              value={state === "ready" && stats ? stats.customers : "—"}
+              icon={Users}
+            />
+            <StatCard
+              label="Total services"
+              value={state === "ready" && stats ? stats.totalServices : "—"}
+              hint={
+                stats ? `${stats.pendingServices} pending review` : undefined
+              }
+              icon={ShieldCheck}
+            />
+            <StatCard
+              label="Transactions"
+              value={
+                state === "ready" && stats ? stats.totalTransactions : "—"
+              }
+              hint={
+                stats
+                  ? `${formatCurrency(stats.totalRevenue)} collected`
+                  : undefined
+              }
+              icon={CircleDollarSign}
+            />
+          </div>
 
-      {/* Tabs */}
-      <div className="mt-8 flex border-b border-[#e9e7e4]">
-        {(
-          [
-            { id: "users", label: `Users (${users.length})` },
-            { id: "services", label: `Services (${services.length})` },
-            {
-              id: "transactions",
-              label: `Payments (${transactions.length})`,
-            },
-          ] as const
-        ).map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => setTab(item.id)}
-            className={`relative flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap px-2 pb-4 pt-2 text-[10px] font-semibold uppercase tracking-[0.1em] transition-colors sm:flex-none sm:px-6 sm:text-[11px] sm:tracking-[0.14em] ${
-              tab === item.id
-                ? "text-[#252525]"
-                : "text-[#999999] hover:text-[#555555]"
-            }`}
-          >
-            {item.label}
-            {item.id === "services" && (stats?.pendingServices ?? 0) > 0 && (
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#252525] px-1 text-[9px] leading-none text-white">
-                {stats?.pendingServices}
-              </span>
-            )}
-            {tab === item.id && (
-              <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#252525]" />
-            )}
-          </button>
-        ))}
-      </div>
+          <div className="mt-8 grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+            <div className="border border-[#e9e7e4] bg-white">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#f0eeeb] px-5 py-4">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#a58f88]">
+                    Moderation queue
+                  </p>
+                  <h2 className="mt-1 font-heading text-xl text-[#252525]">
+                    Pending review
+                  </h2>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSection("services")}
+                  className="text-xs font-semibold text-[#737373] transition hover:text-[#252525]"
+                >
+                  Manage all services
+                </button>
+              </div>
+
+              {state === "ready" &&
+                services.filter((service) => service.status === "pending")
+                  .length === 0 && (
+                  <p className="px-5 py-8 text-sm text-[#737373]">
+                    Nothing is waiting for review right now.
+                  </p>
+                )}
+
+              {state === "ready" &&
+                services.filter((service) => service.status === "pending")
+                  .length > 0 && (
+                  <ul className="divide-y divide-[#f0eeeb]">
+                    {services
+                      .filter((service) => service.status === "pending")
+                      .slice(0, 3)
+                      .map((service) => (
+                        <li
+                          key={service.id}
+                          className="flex flex-wrap items-center justify-between gap-3 px-5 py-4"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-[#252525]">
+                              {service.serviceName}
+                            </p>
+                            <p className="mt-0.5 truncate text-[11px] text-[#999999]">
+                              {service.vendor.businessName ||
+                                service.vendor.name}{" "}
+                              · {service.category}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                moderateService(service.id, "approved")
+                              }
+                              disabled={updatingServiceId === service.id}
+                              className="inline-flex items-center gap-1.5 bg-[#252525] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-[#444444] disabled:opacity-60"
+                            >
+                              <Check size={12} />
+                              Approve
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                moderateService(service.id, "rejected")
+                              }
+                              disabled={updatingServiceId === service.id}
+                              className="inline-flex items-center gap-1.5 border border-[#e9e7e4] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#737373] transition hover:border-[#b91c1c] hover:text-[#b91c1c] disabled:opacity-60"
+                            >
+                              <X size={12} />
+                              Reject
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                  </ul>
+                )}
+            </div>
+
+            <div className="border border-[#e9e7e4] bg-white p-5 sm:p-6">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#a58f88]">
+                Revenue
+              </p>
+              <h2 className="mt-2 font-heading text-3xl text-[#252525]">
+                {stats ? formatCurrency(stats.totalRevenue) : "—"}
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-[#737373]">
+                {stats
+                  ? `${stats.paidTransactions} paid transactions · ${stats.premiumVendors} premium vendors`
+                  : "Loading platform totals…"}
+              </p>
+
+              <div className="mt-5 grid grid-cols-2 gap-3 border-t border-[#f0eeeb] pt-5">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.14em] text-[#999999]">
+                    Bookings
+                  </p>
+                  <p className="mt-1 font-heading text-2xl text-[#252525]">
+                    {stats ? stats.totalBookings : "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.14em] text-[#999999]">
+                    Pending
+                  </p>
+                  <p className="mt-1 font-heading text-2xl text-[#252525]">
+                    {stats ? stats.pendingBookings : "—"}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSection("transactions")}
+                className="mt-5 inline-flex items-center gap-2 border border-[#252525] px-4 py-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#252525] transition hover:bg-[#252525] hover:text-white"
+              >
+                View transactions
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {state === "error" && (
         <div className="mt-8 border border-[#e9e7e4] bg-white p-8 text-center">
@@ -309,8 +473,17 @@ export default function AdminDashboard() {
       )}
 
       {/* USERS TAB */}
-      {tab === "users" && state !== "error" && (
-        <div className="mt-8">
+      {section === "users" && state !== "error" && (
+        <div>
+          <div className="mb-6 border-b border-[#e9e7e4] pb-4">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#a58f88]">
+              Accounts
+            </p>
+            <h2 className="mt-1 font-heading text-2xl text-[#252525]">
+              Manage users
+            </h2>
+          </div>
+
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="relative flex-1">
               <Search
@@ -431,8 +604,56 @@ export default function AdminDashboard() {
       )}
 
       {/* SERVICES TAB */}
-      {tab === "services" && state !== "error" && (
-        <div className="mt-8">
+      {section === "services" && state !== "error" && (
+        <div>
+          <div className="mb-6 border-b border-[#e9e7e4] pb-4">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#a58f88]">
+              Moderation
+            </p>
+            <h2 className="mt-1 font-heading text-2xl text-[#252525]">
+              Manage services
+            </h2>
+          </div>
+
+          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="relative flex-1">
+              <Search
+                size={16}
+                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#999999]"
+              />
+              <input
+                value={serviceSearch}
+                onChange={(event) => setServiceSearch(event.target.value)}
+                placeholder="Search by service, category, location, or vendor…"
+                className="h-11 w-full border border-[#e9e7e4] bg-white pl-11 pr-4 text-sm text-[#252525] outline-none transition-colors placeholder:text-[#aaaaaa] focus:border-[#252525]"
+              />
+            </div>
+
+            <div className="flex gap-1.5 overflow-x-auto lg:shrink-0">
+              {(
+                [
+                  { id: "all", label: "All" },
+                  { id: "pending", label: "Pending" },
+                  { id: "approved", label: "Approved" },
+                  { id: "rejected", label: "Rejected" },
+                ] as const
+              ).map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setServiceFilter(item.id)}
+                  className={`h-11 shrink-0 border px-4 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors ${
+                    serviceFilter === item.id
+                      ? "border-[#252525] bg-[#252525] text-white"
+                      : "border-[#e9e7e4] bg-white text-[#737373] hover:border-[#c9bcb7] hover:text-[#252525]"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {state === "loading" && (
             <div className="space-y-2" aria-hidden="true">
               {Array.from({ length: 5 }).map((_, index) => (
@@ -446,7 +667,9 @@ export default function AdminDashboard() {
 
           {state === "ready" && sortedServices.length === 0 && (
             <div className="border border-[#e9e7e4] bg-white px-6 py-12 text-center text-sm text-[#737373]">
-              No services have been submitted yet.
+              {serviceSearch.trim() || serviceFilter !== "all"
+                ? "No services match these filters."
+                : "No services have been submitted yet."}
             </div>
           )}
 
@@ -498,44 +721,67 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    {service.status === "pending" ? (
-                      <div className="flex shrink-0 gap-2">
+                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+                      {service.status !== "approved" && (
                         <button
                           type="button"
                           onClick={() =>
                             moderateService(service.id, "approved")
                           }
                           disabled={updatingServiceId === service.id}
-                          className="flex flex-1 items-center justify-center gap-1.5 bg-[#252525] px-4 py-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-[#444444] disabled:opacity-60 sm:flex-none"
+                          className="flex items-center justify-center gap-1.5 bg-[#252525] px-4 py-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-[#444444] disabled:opacity-60"
                         >
                           <Check size={13} />
-                          Approve
+                          {service.status === "rejected" ? "Restore" : "Approve"}
                         </button>
+                      )}
 
+                      {service.status !== "rejected" && (
                         <button
                           type="button"
                           onClick={() =>
                             moderateService(service.id, "rejected")
                           }
                           disabled={updatingServiceId === service.id}
-                          className="flex flex-1 items-center justify-center gap-1.5 border border-[#e9e7e4] px-4 py-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#737373] transition hover:border-[#b91c1c] hover:text-[#b91c1c] disabled:opacity-60 sm:flex-none"
+                          className="flex items-center justify-center gap-1.5 border border-[#e9e7e4] px-4 py-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#737373] transition hover:border-[#b91c1c] hover:text-[#b91c1c] disabled:opacity-60"
                         >
                           <X size={13} />
-                          Reject
+                          {service.status === "approved"
+                            ? "Unpublish"
+                            : "Reject"}
                         </button>
-                      </div>
-                    ) : (
-                      <div className="flex shrink-0 items-center gap-2">
-                        <BadgeCheck
-                          size={15}
-                          className="text-[#999999]"
-                          aria-hidden="true"
-                        />
-                        <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#999999]">
-                          Reviewed
-                        </span>
-                      </div>
-                    )}
+                      )}
+
+                      {deletingServiceId === service.id ? (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => deleteService(service.id)}
+                            disabled={updatingServiceId === service.id}
+                            className="bg-[#b91c1c] px-3 py-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-[#991b1b] disabled:opacity-60"
+                          >
+                            Delete
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingServiceId(null)}
+                            aria-label="Keep service"
+                            className="flex h-9 w-9 items-center justify-center border border-[#e9e7e4] text-[#737373] transition hover:border-[#252525] hover:text-[#252525]"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setDeletingServiceId(service.id)}
+                          aria-label={`Delete ${service.serviceName}`}
+                          className="flex h-9 w-9 items-center justify-center border border-[#e9e7e4] text-[#999999] transition hover:border-[#b91c1c] hover:text-[#b91c1c]"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </article>
               ))}
@@ -545,8 +791,8 @@ export default function AdminDashboard() {
       )}
 
       {/* TRANSACTIONS TAB */}
-      {tab === "transactions" && state !== "error" && (
-        <div className="mt-8">
+      {section === "transactions" && state !== "error" && (
+        <div>
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#a58f88]">
