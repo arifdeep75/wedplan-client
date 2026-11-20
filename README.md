@@ -37,7 +37,7 @@ The API lives in a separate repository: `wedplan-server` (Express 5 + MongoDB).
 
 **Customers**
 
-- Send booking requests with a preferred date and a message.
+- Send booking requests with a preferred date, event location and a message.
 - Track request status (pending, accepted, declined, cancelled).
 - Cancel pending requests.
 - Manage their profile, avatar and password.
@@ -82,10 +82,18 @@ premium subscriptions are charged in USD.
 Requirements: Node.js 20+, npm, and the WedPlan API running (default
 `http://localhost:5000`).
 
+Create `.env.local` manually — it is git-ignored and must never be committed:
+
 ```bash
 npm install
-cp .env.example .env.local
+# create .env.local with the values below
 npm run dev
+```
+
+Minimal local `.env.local`:
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:5000
 ```
 
 Open `http://localhost:3000`.
@@ -93,6 +101,7 @@ Open `http://localhost:3000`.
 | Variable              | Required | Description                    |
 | --------------------- | -------- | ------------------------------ |
 | `NEXT_PUBLIC_API_URL` | yes      | Base URL of the WedPlan API    |
+| `API_PROXY_URL`       | no*      | API origin used by `next.config.ts` rewrites; required for same-origin cookies in deployment |
 | `NEXT_PUBLIC_CONTACT_EMAIL` | no | Public support email displayed in the footer |
 | `NEXT_PUBLIC_CONTACT_PHONE` | no | Public support phone displayed in the footer |
 | `NEXT_PUBLIC_CONTACT_LOCATION` | no | Public contact location displayed in the footer |
@@ -100,6 +109,9 @@ Open `http://localhost:3000`.
 | `NEXT_PUBLIC_INSTAGRAM_URL` | no | Official Instagram profile URL |
 | `NEXT_PUBLIC_X_URL` | no | Official X profile URL |
 | `NEXT_PUBLIC_YOUTUBE_URL` | no | Official YouTube channel URL |
+
+All environment files are git-ignored. Never commit `.env`, `.env.local`,
+`.env.production` or any other file containing real credentials.
 
 Scripts:
 
@@ -116,10 +128,10 @@ npm run lint    # eslint
   session after sign-in, profile edits and plan changes.
 - Creating or editing a service sets it back to **pending** — the admin must
   approve it before it appears in public browsing.
-- Checkout returns to `/dashboard/vendor?payment=success&session_id=…`. The
-  dashboard asks the API to verify the session, removes the query string, and
-  waits for the Stripe webhook to grant premium — the redirect itself never
-  unlocks anything.
+- Checkout returns to `/payment/success?session_id=…`. That page asks the API
+  to verify the session and waits for the Stripe webhook to grant premium; the
+  redirect itself never unlocks anything. `/payment/cancel` handles a cancelled
+  checkout.
 - When the API has no Stripe keys, the Plan tab shows an explicit demo option
   only if the server enables `PAYMENTS_DEMO`. Demo activations are labelled as
   such and never look like real payments.
@@ -148,8 +160,8 @@ src/
   components/
     auth/                  sign-in / sign-up forms
     dashboard/             shells, stat cards, role-specific dashboards
-    home/                  hero, categories, featured services
-    layout/                navbar, footer
+    home/                  featured services
+    shared/                navbar, footer and reveal wrapper
     services/              browser, cards, detail view, booking panel
     ui/                    shared primitives
   lib/                     api client, auth client, formatters
