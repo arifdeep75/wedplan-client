@@ -874,11 +874,7 @@ export default function VendorDashboard() {
           )}
 
           {subscription && (
-            <VendorSubscription
-              status={subscription}
-              onChanged={setSubscription}
-              onServicesChanged={refresh}
-            />
+            <VendorSubscription status={subscription} />
           )}
         </div>
       )}

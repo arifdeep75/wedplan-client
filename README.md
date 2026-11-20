@@ -132,9 +132,8 @@ npm run lint    # eslint
   to verify the session and waits for the Stripe webhook to grant premium; the
   redirect itself never unlocks anything. `/payment/cancel` handles a cancelled
   checkout.
-- When the API has no Stripe keys, the Plan tab shows an explicit demo option
-  only if the server enables `PAYMENTS_DEMO`. Demo activations are labelled as
-  such and never look like real payments.
+- Premium upgrades use hosted Stripe Checkout. If the API or webhook is not
+  configured, checkout is disabled rather than simulating a payment.
 - Empty, loading and error states are handled on every data-driven screen; no
   `alert()` calls.
 

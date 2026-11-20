@@ -33,7 +33,6 @@ export interface SubscriptionStatus {
   expiresAt: string | null;
   stripeConfigured: boolean;
   webhookConfigured: boolean;
-  demoEnabled: boolean;
   price: { amount: number; currency: string; months: number };
   freeServiceLimit: number;
   paidTransactions: number;
@@ -42,17 +41,10 @@ export interface SubscriptionStatus {
 
 interface VendorSubscriptionProps {
   status: SubscriptionStatus;
-  onChanged: (next: SubscriptionStatus) => void;
-  onServicesChanged: () => void;
 }
 
-export default function VendorSubscription({
-  status,
-  onChanged,
-  onServicesChanged,
-}: VendorSubscriptionProps) {
+export default function VendorSubscription({ status }: VendorSubscriptionProps) {
   const [busy, setBusy] = useState(false);
-  const [confirmDemo, setConfirmDemo] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isPremium = status.plan === "premium";
@@ -65,53 +57,19 @@ export default function VendorSubscription({
     try {
       const result = await api<{
         success: boolean;
-        data: { url?: string; demo?: boolean };
+        data: { url?: string };
       }>("/api/payments/checkout", { method: "POST", body: "{}" });
 
-      if (result.data?.url) {
-        window.location.assign(result.data.url);
-        return;
+      if (!result.data?.url) {
+        throw new Error("Stripe did not return a checkout URL");
       }
 
-      if (result.data?.demo) {
-        setConfirmDemo(true);
-        setBusy(false);
-        return;
-      }
-
-      setError("Checkout could not be started. Please try again.");
+      window.location.assign(result.data.url);
     } catch (checkoutError) {
       const text =
         checkoutError instanceof Error
           ? checkoutError.message
           : "Failed to start checkout";
-      setError(text);
-      toast.error(text);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function activateDemo() {
-    setBusy(true);
-    setError(null);
-
-    try {
-      const result = await api<{
-        success: boolean;
-        message?: string;
-        data: SubscriptionStatus;
-      }>("/api/payments/demo-activate", { method: "POST", body: "{}" });
-
-      onChanged(result.data);
-      onServicesChanged();
-      setConfirmDemo(false);
-      toast.success(result.message || "Demo premium activated");
-    } catch (demoError) {
-      const text =
-        demoError instanceof Error
-          ? demoError.message
-          : "Failed to activate the demo plan";
       setError(text);
       toast.error(text);
     } finally {
@@ -226,61 +184,25 @@ export default function VendorSubscription({
           </p>
 
           <div className="mt-6">
-            {confirmDemo ? (
-              <div className="border border-[#e9e7e4] bg-[#fafaf8] p-4">
-                <p className="text-xs font-semibold text-[#252525]">
-                  Demo payment — no real charge
-                </p>
-                <p className="mt-1.5 text-[11px] leading-5 text-[#737373]">
-                  Stripe keys are not configured in this environment, so this
-                  activates a demo premium period. The transaction is recorded
-                  as &ldquo;demo&rdquo; for the admin.
-                </p>
-
-                <div className="mt-3 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={activateDemo}
-                    disabled={busy}
-                    className="flex h-10 flex-1 items-center justify-center gap-2 bg-[#252525] text-[10px] font-semibold uppercase tracking-[0.12em] text-white transition hover:bg-[#444444] disabled:opacity-60"
-                  >
-                    {busy && <Loader2 size={13} className="animate-spin" />}
-                    {busy ? "Activating…" : "Activate demo"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDemo(false)}
-                    disabled={busy}
-                    className="h-10 flex-1 border border-[#e9e7e4] text-[10px] font-semibold uppercase tracking-[0.12em] text-[#737373] transition hover:border-[#252525] hover:text-[#252525]"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={startCheckout}
-                disabled={
-                  busy ||
-                  (!status.stripeConfigured && !status.demoEnabled) ||
-                  (status.stripeConfigured && !status.webhookConfigured)
-                }
-                className="flex h-12 w-full items-center justify-center gap-2 bg-[#252525] text-xs font-semibold uppercase tracking-[0.12em] text-white transition hover:bg-[#444444] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {busy ? (
-                  <Loader2 size={15} className="animate-spin" />
-                ) : (
-                  <BadgeCheck size={15} />
-                )}
-                {busy
-                  ? "Starting checkout…"
-                  : isPremium
-                    ? `Renew for ${price}`
-                    : `Upgrade for ${price}`}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={startCheckout}
+              disabled={
+                busy || !status.stripeConfigured || !status.webhookConfigured
+              }
+              className="flex h-12 w-full items-center justify-center gap-2 bg-[#252525] text-xs font-semibold uppercase tracking-[0.12em] text-white transition hover:bg-[#444444] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {busy ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <BadgeCheck size={15} />
+              )}
+              {busy
+                ? "Starting checkout…"
+                : isPremium
+                  ? `Renew for ${price}`
+                  : `Upgrade for ${price}`}
+            </button>
           </div>
 
           {error && (
@@ -289,24 +211,18 @@ export default function VendorSubscription({
             </p>
           )}
 
-          {!status.stripeConfigured && !status.demoEnabled && (
-            <p className="mt-4 text-[11px] leading-5 text-[#999999]">
-              Upgrades aren&rsquo;t available right now. Please try again later.
-            </p>
-          )}
-
-          {!status.stripeConfigured && status.demoEnabled && !confirmDemo && (
+          {!status.stripeConfigured && (
             <p className="mt-4 flex items-start gap-2 text-[11px] leading-5 text-[#999999]">
               <ShieldCheck size={13} className="mt-0.5 shrink-0 text-[#b9a6a0]" />
-              Demo mode is enabled on this server. Real Stripe checkout appears
-              automatically once keys are configured.
+              Real Stripe checkout is unavailable until the API server has a
+              valid STRIPE_SECRET_KEY configured.
             </p>
           )}
 
           {status.stripeConfigured && !status.webhookConfigured && (
             <p className="mt-4 border border-[#f0d9d9] bg-[#fbf6f6] px-4 py-3 text-[11px] leading-5 text-[#b91c1c]">
-              Payments are not fully configured yet. Upgrades are temporarily
-              unavailable.
+              Real checkout is disabled until STRIPE_WEBHOOK_SECRET is
+              configured on the API server.
             </p>
           )}
 
@@ -364,11 +280,6 @@ export default function VendorSubscription({
                         {transaction.plan} plan
                       </p>
                       <StatusBadge status={transaction.status} />
-                      {transaction.provider === "demo" && (
-                        <span className="border border-[#e9e7e4] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-[#999999]">
-                          Demo
-                        </span>
-                      )}
                     </div>
 
                     <p className="mt-1 text-[11px] text-[#999999]">
