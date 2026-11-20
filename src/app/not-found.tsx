@@ -12,7 +12,7 @@ export default function NotFound() {
     <section className="relative isolate flex min-h-[70vh] items-center overflow-hidden bg-[#fafaf8] px-5 py-20 md:px-8 md:py-28">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -right-24 -top-28 -z-10 h-80 w-80 rounded-full border border-[#e9e2df] sm:h-[28rem] sm:w-[28rem]"
+        className="pointer-events-none absolute -right-24 -top-28 -z-10 h-80 w-80 rounded-full border border-[#e9e2df] sm:h-112 sm:w-md"
       />
       <div
         aria-hidden="true"
