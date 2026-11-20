@@ -43,12 +43,25 @@ interface VendorSubscriptionProps {
   status: SubscriptionStatus;
 }
 
+function getRenewalEndDate(expiresAt: string, months: number): Date {
+  const currentExpiry = new Date(expiresAt);
+  const renewalBase =
+    currentExpiry.getTime() > Date.now() ? currentExpiry : new Date();
+  const renewalEnd = new Date(renewalBase);
+  renewalEnd.setMonth(renewalEnd.getMonth() + months);
+  return renewalEnd;
+}
+
 export default function VendorSubscription({ status }: VendorSubscriptionProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isPremium = status.plan === "premium";
   const price = formatCurrency(status.price.amount, status.price.currency);
+  const projectedRenewalEnd =
+    isPremium && status.expiresAt
+      ? getRenewalEndDate(status.expiresAt, status.price.months)
+      : null;
 
   async function startCheckout() {
     setBusy(true);
@@ -159,7 +172,7 @@ export default function VendorSubscription({ status }: VendorSubscriptionProps) 
           {isPremium && status.expiresAt && (
             <p className="mt-8 flex items-center gap-2 border-t border-white/15 pt-4 text-[11px] text-[#bfbfbf]">
               <CalendarClock size={13} />
-              Expires {formatDate(status.expiresAt)} · renew any time
+              Current period ends {formatDate(status.expiresAt)} · renew any time
             </p>
           )}
         </div>
@@ -182,6 +195,17 @@ export default function VendorSubscription({ status }: VendorSubscriptionProps) 
               ? "Renewing early stacks another 12 months on top of your current expiry."
               : `A one-time payment for ${status.price.months} months of unlimited listings.`}
           </p>
+
+          {projectedRenewalEnd && (
+            <p className="mt-4 flex items-start gap-2 border border-[#f0eeeb] bg-[#fafaf8] px-4 py-3 text-xs leading-5 text-[#737373]">
+              <CalendarClock size={14} className="mt-0.5 shrink-0 text-[#a58f88]" />
+              Renewing today extends Premium until{" "}
+              <strong className="font-semibold text-[#252525]">
+                {formatDate(projectedRenewalEnd)}
+              </strong>
+              .
+            </p>
+          )}
 
           <div className="mt-6">
             <button
